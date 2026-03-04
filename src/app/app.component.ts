@@ -37,6 +37,8 @@ const MONTREAL_COORDINATES = {
   latitude: 45.5019,
   longitude: -73.5674,
 };
+const ASTRONOMY_API_APP_ID = import.meta.env['VITE_ASTRONOMY_APP_ID'] ?? '';
+const ASTRONOMY_API_APP_SECRET = import.meta.env['VITE_ASTRONOMY_APP_SECRET'] ?? '';
 const ASTRONOMY_API_AUTH = import.meta.env['VITE_ASTRONOMY_API_AUTH'] ?? '';
 const DISPLAYED_PRAYERS: ReadonlyArray<{ name: PrayerName; arabic: string }> = [
   { name: 'Fajr', arabic: 'الفجر' },
@@ -68,19 +70,21 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         </div>
 
         <div class="clock-card">
-          <p class="clock-label">Current Montreal Time</p>
-          <div class="clock-primary">
-            <p class="clock-time">{{ currentTime() }}</p>
-            <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
+          <div class="clock-info">
+            <p class="clock-label">Current Montreal Time</p>
+            <div class="clock-primary">
+              <p class="clock-time">{{ currentTime() }}</p>
+            </div>
+            <p class="clock-date">{{ gregorianLongDate() }}</p>
+            <p class="clock-hijri">{{ hijriLongDate() }}</p>
+          </div>
+          <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
               <img *ngIf="moonPhase().imageUrl; else moonIcon" [src]="moonPhase().imageUrl" [alt]="moonPhase().label" />
               <ng-template #moonIcon>
                 <span class="moon-phase-icon" aria-hidden="true">{{ moonPhase().icon }}</span>
               </ng-template>
-              <p class="moon-phase-label">{{ moonPhase().label }}</p>
-            </div>
+              <p class="moon-phase-label">Moon Phase</p>
           </div>
-          <p class="clock-date">{{ gregorianLongDate() }}</p>
-          <p class="clock-hijri">{{ hijriLongDate() }}</p>
         </div>
 
         <div class="jumuaa-card">
@@ -280,6 +284,19 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         gap: 10px;
       }
 
+      .clock-card {
+        display: grid;
+        /* Split into two columns: Left for text, Right for moon */
+        grid-template-columns: 1fr auto; 
+        align-items: center; /* Vertically centers the moon with the text */
+        gap: 20px;
+      }
+        .clock-info {
+          display: flex;
+          flex-direction: column;
+          gap: 8px; /* Consistent spacing between time and dates */
+        }
+
       .clock-time {
         font-size: clamp(2.2rem, 5vw, 3.6rem);
         color: var(--accent-soft);
@@ -302,12 +319,11 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .moon-phase img {
-        width: 88px;
-        height: 88px;
-        object-fit: cover;
-        border-radius: 20px;
-        border: 1px solid rgba(240, 225, 191, 0.14);
-        background: rgba(255, 255, 255, 0.04);
+        width: 100px;
+        height: 100px;
+        object-fit: none; /* Prevents the image from stretching */
+        object-position: -50px -50px; /* Shifts the image: -Left -Top */
+        border-radius: 50%; /* Optional: creates a clean circular crop */
       }
 
       .moon-phase-icon {
@@ -674,7 +690,8 @@ export class AppComponent {
     this.loadedMoonPhaseDate.set(requestDate);
 
     const fallback = this.getMoonPhaseFallback(requestDate);
-    if (!ASTRONOMY_API_AUTH) {
+    const authorization = this.getAstronomyAuthorizationHeader();
+    if (!authorization) {
       this.moonPhase.set(fallback);
       return;
     }
@@ -683,15 +700,15 @@ export class AppComponent {
       const response = await fetch('https://api.astronomyapi.com/api/v2/studio/moon-phase', {
         method: 'POST',
         headers: {
-          Authorization: this.formatAstronomyAuthHeader(ASTRONOMY_API_AUTH),
+          Authorization: authorization,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           format: 'png',
           style: {
-            moonStyle: 'shaded',
+            moonStyle: 'default',
             backgroundStyle: 'solid',
-            backgroundColor: '#10231f',
+            backgroundColor: 'transparent',
             headingColor: '#f0e1bf',
             textColor: '#f7f2e8',
           },
@@ -840,6 +857,18 @@ export class AppComponent {
     const age = (date.getTime() - knownNewMoonUtc) / 86400000;
 
     return ((age % synodicMonthDays) + synodicMonthDays) % synodicMonthDays;
+  }
+
+  private getAstronomyAuthorizationHeader(): string {
+    if (ASTRONOMY_API_APP_ID && ASTRONOMY_API_APP_SECRET) {
+      return `Basic ${btoa(`${ASTRONOMY_API_APP_ID}:${ASTRONOMY_API_APP_SECRET}`)}`;
+    }
+
+    if (ASTRONOMY_API_AUTH) {
+      return this.formatAstronomyAuthHeader(ASTRONOMY_API_AUTH);
+    }
+
+    return '';
   }
 
   private formatAstronomyAuthHeader(value: string): string {
