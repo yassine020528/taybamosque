@@ -117,7 +117,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
                 <p class="section-label">Today's Schedule</p>
                 <h2>Prayer Times</h2>
               </div>
-              <p class="upcoming">{{ upcomingPrayerLabel() }}</p>
+              <h2 class="h2 upcoming">{{ upcomingPrayerLabel() }}</h2>
             </div>
 
             <p *ngIf="loadingPrayerTimes()" class="status-message">Loading prayer times...</p>
@@ -190,6 +190,9 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
                 </ng-template>
               </article>
             </div>
+          </section>
+          <section class="duaa-card">
+          
           </section>
         </div>
       </div>
@@ -299,7 +302,11 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         font-size: 40px;
       }
 
-      .upcoming,
+      .clock-date,
+      .clock-hijri {
+        font-size: 30px;
+      }
+
       .clock-date,
       .clock-hijri,
       .status-message {
@@ -595,7 +602,9 @@ export class AppComponent {
     const currentMinutes = this.montrealNow().hour * 60 + this.montrealNow().minute;
     const nextPrayer = prayers.find((prayer) => prayer.adhanMinutes > currentMinutes);
     if (nextPrayer) {
-      return `Next: ${nextPrayer.name} at ${nextPrayer.adhanTime}`;
+      const hoursUntilNext = Math.floor((nextPrayer.adhanMinutes - currentMinutes) / 60);
+      const minutesUntilNext = (nextPrayer.adhanMinutes - currentMinutes) % 60;
+      return `Next: ${nextPrayer.name} in ${hoursUntilNext}h ${minutesUntilNext}m`;
     }
 
     const firstPrayer = prayers[0];
