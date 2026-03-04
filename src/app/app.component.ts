@@ -9,6 +9,7 @@ type PrayerTime = {
   adhanTime: string;
   adhanMinutes: number;
   iqamaTime: string;
+  iqamaMinutes: number;
   isSunrise: boolean;
   isMaghrib: boolean;
 };
@@ -26,6 +27,10 @@ type MoonPhase = {
   label: string;
   icon: string;
   imageUrl: string;
+};
+
+type DuaaItem = {
+  arabic: string;
 };
 
 const TIME_ZONE = 'America/Toronto';
@@ -49,14 +54,42 @@ const DISPLAYED_PRAYERS: ReadonlyArray<{ name: PrayerName; arabic: string }> = [
   { name: 'Isha', arabic: 'العشاء' },
 ];
 const JUMUAAH_PRAYERS = ['11:30 p.m.', '12:30 p.m.', '1:30 p.m.'] as const;
+const IQAMA_CONSTANTS: Record<PrayerName, string | null> = {
+  Fajr: null,
+  Sunrise: null,
+  Dhuhr: '1:30 p.m.',
+  Asr: null,
+  Maghrib: null, 
+  Isha: null,
+};
 const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
-  Fajr: 30,
+  Fajr: 25,
   Sunrise: null,
   Dhuhr: 30,
-  Asr: 30,
-  Maghrib: 0,
+  Asr: 5,
+  Maghrib: 7,
   Isha: 30,
 };
+const DUAAS: ReadonlyArray<DuaaItem> = [
+  {
+    arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
+  },
+  {
+    arabic: 'اللَّهُمَّ اغْفِرْ لِي وَلِوَالِدَيَّ وَلِلْمُؤْمِنِينَ يَوْمَ يَقُومُ الْحِسَابُ',
+    },
+  {
+    arabic: 'اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي',
+  },
+  {
+    arabic: 'بِسْمِ اللّٰهِ، وَالصَّلَاةُ وَالسَّلَامُ عَلَىٰ رَسُوْلِ اللّٰهِ، اَللّٰهُمَّ اغْفِرْ لِيْ ذُنُوْبِيْ، اَللّٰهُمَّ افْتَحْ لِيْ أَبْوَابَ رَحْمَتِكَ',
+  },
+  {
+    arabic: 'أَعُوْذُ بِاللّٰهِ الْعَظِيْمِ، وَبِوَجْهِهِ الْكَرِيْمِ، وَسُلْطَانِهِ الْقَدِيْمِ، مِنَ الشَّيْطَانِ الرَّجِيْمِ',
+  },
+  {
+    arabic: 'بِسْمِ اللّهِ وَالصَّلاَةُ وَالسَّلاَمُ عَلَى رَسُولِ اللّهِ، اَللَّهُـمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْـلِكَ، اَللَّهُـمَّ اعْصِمْنِـي مِنَ الشَّيْـطَانِ الرَّجِـيمِ',
+  },
+];
 
 @Component({
   selector: 'app-root',
@@ -114,8 +147,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
           <section class="prayer-card">
             <div class="section-heading">
               <div>
-                <p class="section-label">Today's Schedule</p>
-                <h2>Prayer Times</h2>
+                <h2>Today's Schedule</h2>
               </div>
               <h2 class="h2 upcoming">{{ upcomingPrayerLabel() }}</h2>
             </div>
@@ -179,11 +211,9 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
                 <ng-template #prayerSchedule>
                   <div class="prayer-meta">
                     <div class="prayer-row">
-                      <p class="prayer-meta-label">Adhan</p>
                       <p class="prayer-time">{{ prayer.adhanTime }}</p>
                     </div>
                     <div class="prayer-row">
-                      <p class="prayer-meta-label">Iqama</p>
                       <p class="prayer-time">{{ prayer.iqamaTime }}</p>
                     </div>
                   </div>
@@ -192,7 +222,15 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
             </div>
           </section>
           <section class="duaa-card">
-          
+            <div class="duaa-marquee" aria-label="Scrolling duaa list">
+              <div class="duaa-track">
+                <div class="duaa-group">
+                  <p class="duaa-line" *ngFor="let duaa of duaas()">
+                    <span class="duaa-text">{{ duaa.arabic }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </div>
@@ -200,6 +238,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
   `,
   styles: [
     `
+      @import url(https://fonts.googleapis.com/earlyaccess/amiri.css);
       :host {
         display: block;
         height: 100vh;
@@ -244,7 +283,8 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .hero,
-      .prayer-card {
+      .prayer-card,
+      .duaa-card {
         width: 1856px;
         margin: 0 auto;
       }
@@ -289,7 +329,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         color: var(--accent);
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        font-size: 15px;
+        font-size: 25px;
       }
 
       h1,
@@ -381,7 +421,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .moon-phase-label {
         color: var(--muted);
-        font-size: 15px;
+        font-size: 25px;
         line-height: 1.2;
       }
 
@@ -408,7 +448,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-size: 15px;
+        font-size: 30px;
       }
 
       .jumuaa-time {
@@ -419,6 +459,53 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       .prayer-card {
         padding: 34px;
         margin-bottom: 24px;
+      }
+
+      .duaa-card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        padding: 6px 0 0;
+        overflow: hidden;
+        min-height: 96px;
+      }
+
+      .duaa-marquee {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+      }
+
+      .duaa-track {
+        display: inline-flex;
+        align-items: center;
+        gap: 48px;
+        white-space: nowrap;
+        width: max-content;
+        animation: duaa-scroll 60s linear infinite;
+      }
+
+      .duaa-line {
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+      }
+
+      .duaa-line::after {
+        content: '•';
+        margin-left: 48px;
+        color: rgba(216, 178, 110, 0.65);
+        font-size: 30px;
+      }
+
+      .duaa-text {  
+        font-family: 'Amiri', serif;
+        font-size: 38px;
+        line-height: 2;
+        color: var(--accent-soft);
+        direction: rtl;
+        text-align: center;
       }
 
       .section-heading {
@@ -461,7 +548,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .prayer-name {
-        font-size: 24px;
+        font-size: 35px;
       }
 
       .prayer-heading {
@@ -483,8 +570,8 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .prayer-title-icon {
         display: inline-flex;
-        width: 28px;
-        height: 28px;
+        width: 60px;
+        height: 60px;
         color: var(--accent);
         flex: 0 0 auto;
         margin-left: auto;
@@ -497,6 +584,8 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .prayer-arabic {
         color: var(--accent-soft);
+        font-family: 'Amiri', serif;
+        font-size: 30px;
       }
 
       .prayer-meta {
@@ -514,14 +603,13 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-size: 13px;
+        font-size: 20px;
       }
 
       .prayer-row {
         display: grid;
         grid-template-columns: auto 1fr;
         align-items: baseline;
-        gap: 16px;
         padding-bottom: 12px;
         border-bottom: 1px solid rgba(240, 225, 191, 0.1);
       }
@@ -532,9 +620,19 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .prayer-time {
-        font-size: 30px;
+        font-size: 50px;
         justify-self: end;
         text-align: right;
+      }
+
+      @keyframes duaa-scroll {
+        from {
+          transform: translateX(-50%);
+        }
+
+        to {
+          transform: translateX(0);
+        }
       }
     `,
   ],
@@ -553,6 +651,8 @@ export class AppComponent {
   readonly loadedPrayerDate = signal('');
   readonly loadedMoonPhaseDate = signal('');
   readonly jumuaaPrayers = signal([...JUMUAAH_PRAYERS]);
+  readonly duaas = signal([...DUAAS]);
+  readonly scrollingDuaas = computed(() => [...this.duaas(), ...this.duaas()]);
 
   readonly montrealNow = computed(() => this.getDatePartsInZone(this.now()));
   readonly currentTime = computed(() =>
@@ -586,9 +686,7 @@ export class AppComponent {
   });
   readonly prayerTimes = computed(() => this.prayerTimesState());
   readonly nextPrayerName = computed(() => {
-    const prayers = this.prayerTimes();
-    const currentMinutes = this.montrealNow().hour * 60 + this.montrealNow().minute;
-    return prayers.find((prayer) => prayer.adhanMinutes > currentMinutes)?.name ?? prayers[0]?.name ?? '';
+    return this.getNextPrayerEvent().prayerName ?? this.prayerTimes()[0]?.name ?? '';
   });
   readonly upcomingPrayerLabel = computed(() => {
     const prayers = this.prayerTimes();
@@ -599,12 +697,9 @@ export class AppComponent {
       return 'Prayer times unavailable';
     }
 
-    const currentMinutes = this.montrealNow().hour * 60 + this.montrealNow().minute;
-    const nextPrayer = prayers.find((prayer) => prayer.adhanMinutes > currentMinutes);
-    if (nextPrayer) {
-      const hoursUntilNext = Math.floor((nextPrayer.adhanMinutes - currentMinutes) / 60);
-      const minutesUntilNext = (nextPrayer.adhanMinutes - currentMinutes) % 60;
-      return `Next: ${nextPrayer.name} in ${hoursUntilNext}h ${minutesUntilNext}m`;
+    const nextEvent = this.getNextPrayerEvent();
+    if (nextEvent.prayerName && nextEvent.eventLabel && nextEvent.remainingSeconds !== null) {
+      return `Next: ${nextEvent.prayerName} ${nextEvent.eventLabel} in ${this.formatEventCountdown(nextEvent.remainingSeconds)}`;
     }
 
     const firstPrayer = prayers[0];
@@ -651,6 +746,7 @@ export class AppComponent {
       adhanTime: '--:--',
       adhanMinutes: Number.MAX_SAFE_INTEGER - index,
       iqamaTime: this.getIqamaTime('--:--', prayer.name),
+      iqamaMinutes: Number.MAX_SAFE_INTEGER - index,
       isSunrise: prayer.name === 'Sunrise',
       isMaghrib: prayer.name === 'Maghrib',
     }));
@@ -766,6 +862,7 @@ export class AppComponent {
         adhanTime: this.formatPrayerTime(rawTime),
         adhanMinutes: this.parsePrayerMinutes(rawTime),
         iqamaTime: this.getIqamaTime(rawTime, prayer.name),
+        iqamaMinutes: this.parsePrayerMinutes(this.getIqamaTime(rawTime, prayer.name)),
         isSunrise: prayer.name === 'Sunrise',
         isMaghrib: prayer.name === 'Maghrib',
       };
@@ -788,24 +885,88 @@ export class AppComponent {
   }
 
   private parsePrayerMinutes(rawTime: string): number {
-    const time = this.extractClockValue(rawTime);
-    if (!time) {
+    const match = rawTime.trim().match(/(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?/i);
+    if (!match) {
       return Number.MAX_SAFE_INTEGER;
     }
 
-    const [hours, minutes] = time.split(':').map(Number);
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const meridiem = match[3]?.toLowerCase();
+
+    if (meridiem === 'p' && hours < 12) {
+      hours += 12;
+    } else if (meridiem === 'a' && hours === 12) {
+      hours = 0;
+    }
+
     return hours * 60 + minutes;
   }
 
   private getIqamaTime(rawTime: string, prayerName: PrayerName): string {
-    const offset = IQAMA_OFFSETS_MINUTES[prayerName];
-    const adhanMinutes = this.parsePrayerMinutes(rawTime);
+    let iqamaTime = IQAMA_CONSTANTS[prayerName];
+    if (!iqamaTime) {
+      const offset = IQAMA_OFFSETS_MINUTES[prayerName];
+      const adhanMinutes = this.parsePrayerMinutes(rawTime);
 
-    if (offset === null || adhanMinutes === Number.MAX_SAFE_INTEGER) {
-      return '--:--';
+      if (offset === null || adhanMinutes === Number.MAX_SAFE_INTEGER) {
+        return '--:--';
+      }
+
+      iqamaTime = this.formatMinutesAsTime(adhanMinutes + offset);
+    }
+    return iqamaTime;
+  }
+
+  private getNextPrayerEvent(): {
+    prayerName: PrayerName | null;
+    eventLabel: 'Adhan' | 'Iqama' | null;
+    remainingSeconds: number | null;
+  } {
+    const current = this.montrealNow();
+    const currentSeconds = current.hour * 3600 + current.minute * 60 + current.second;
+    const events = this.prayerTimes()
+      .flatMap((prayer) => [
+        {
+          prayerName: prayer.name,
+          eventLabel: 'Adhan' as const,
+          eventSeconds: prayer.adhanMinutes * 60,
+        },
+        {
+          prayerName: prayer.name,
+          eventLabel: 'Iqama' as const,
+          eventSeconds: prayer.iqamaMinutes * 60,
+        },
+      ])
+      .filter((event) => Number.isFinite(event.eventSeconds) && event.eventSeconds < Number.MAX_SAFE_INTEGER)
+      .sort((left, right) => left.eventSeconds - right.eventSeconds);
+
+    const nextEvent = events.find((event) => event.eventSeconds > currentSeconds);
+    if (nextEvent) {
+      return {
+        prayerName: nextEvent.prayerName,
+        eventLabel: nextEvent.eventLabel,
+        remainingSeconds: nextEvent.eventSeconds - currentSeconds,
+      };
     }
 
-    return this.formatMinutesAsTime(adhanMinutes + offset);
+    return {
+      prayerName: null,
+      eventLabel: null,
+      remainingSeconds: null,
+    };
+  }
+
+  private formatEventCountdown(remainingSeconds: number): string {
+    const hours = Math.floor(remainingSeconds / 3600);
+    const minutes = Math.floor((remainingSeconds % 3600) / 60);
+    const seconds = remainingSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+
+    return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
   }
 
   private formatMinutesAsTime(totalMinutes: number): string {
