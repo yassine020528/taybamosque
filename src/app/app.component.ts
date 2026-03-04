@@ -1,0 +1,907 @@
+import { CommonModule } from '@angular/common';
+import { Component, computed, signal } from '@angular/core';
+
+type PrayerName = 'Fajr' | 'Sunrise' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha';
+
+type PrayerTime = {
+  name: PrayerName;
+  arabic: string;
+  adhanTime: string;
+  adhanMinutes: number;
+  iqamaTime: string;
+  isSunrise: boolean;
+  isMaghrib: boolean;
+};
+
+type DateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+type MoonPhase = {
+  label: string;
+  icon: string;
+  imageUrl: string;
+};
+
+const TIME_ZONE = 'America/Toronto';
+const PRAYER_CITY = 'Montreal';
+const PRAYER_COUNTRY = 'CA';
+const PRAYER_METHOD = 2;
+const PRAYER_SCHOOL = 0;
+const MONTREAL_COORDINATES = {
+  latitude: 45.5019,
+  longitude: -73.5674,
+};
+const ASTRONOMY_API_AUTH = import.meta.env['VITE_ASTRONOMY_API_AUTH'] ?? '';
+const DISPLAYED_PRAYERS: ReadonlyArray<{ name: PrayerName; arabic: string }> = [
+  { name: 'Fajr', arabic: 'الفجر' },
+  { name: 'Sunrise', arabic: 'الشروق' },
+  { name: 'Dhuhr', arabic: 'الظهر' },
+  { name: 'Asr', arabic: 'العصر' },
+  { name: 'Maghrib', arabic: 'المغرب' },
+  { name: 'Isha', arabic: 'العشاء' },
+];
+const JUMUAAH_PRAYERS = ['11:30 p.m.', '12:30 p.m.', '1:30 p.m.'] as const;
+const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
+  Fajr: 30,
+  Sunrise: null,
+  Dhuhr: 30,
+  Asr: 30,
+  Maghrib: 0,
+  Isha: 30,
+};
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <main class="page">
+      <section class="hero">
+        <div class="nameplate" aria-label="Masjid Tayba">
+          <img src="assets/tayba.png" alt="Masjid Tayba logo" width="100%" height="100%" />
+        </div>
+
+        <div class="clock-card">
+          <p class="clock-label">Current Montreal Time</p>
+          <div class="clock-primary">
+            <p class="clock-time">{{ currentTime() }}</p>
+            <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
+              <img *ngIf="moonPhase().imageUrl; else moonIcon" [src]="moonPhase().imageUrl" [alt]="moonPhase().label" />
+              <ng-template #moonIcon>
+                <span class="moon-phase-icon" aria-hidden="true">{{ moonPhase().icon }}</span>
+              </ng-template>
+              <p class="moon-phase-label">{{ moonPhase().label }}</p>
+            </div>
+          </div>
+          <p class="clock-date">{{ gregorianLongDate() }}</p>
+          <p class="clock-hijri">{{ hijriLongDate() }}</p>
+        </div>
+
+        <div class="jumuaa-card">
+          <p class="clock-label">Jumuah Prayers</p>
+          <div class="jumuaa-times">
+            <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
+              <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
+              <p class="jumuaa-time">{{ prayer }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="qr-code" aria-label="QR Code">
+          <img src="assets/qr.png" alt="QR Code" width="100%" height="100%" />
+        </div>
+      </section>
+
+      <section class="prayer-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Today's Schedule</p>
+            <h2>Prayer Times</h2>
+          </div>
+          <p class="upcoming">{{ upcomingPrayerLabel() }}</p>
+        </div>
+
+        <p *ngIf="loadingPrayerTimes()" class="status-message">Loading prayer times...</p>
+        <p *ngIf="prayerTimesError()" class="status-message error">{{ prayerTimesError() }}</p>
+
+        <div class="prayer-grid">
+          <article
+            *ngFor="let prayer of prayerTimes()"
+            class="prayer-tile"
+            [class.active]="prayer.name === nextPrayerName()"
+          >
+            <div class="prayer-heading">
+              <div class="prayer-title-with-icon">
+                <div class="prayer-title-copy">
+                  <p class="prayer-name">{{ prayer.name }}</p>
+                  <p class="prayer-arabic">{{ prayer.arabic }}</p>
+                </div>
+                <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
+                  <svg *ngIf="prayer.isSunrise" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
+                    <path
+                      d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 1 12 7.4a5.4 5.4 0 0 1 3.8 5.4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M12 4.5v1.7M6.8 7l1.2 1.2M17.2 7L16 8.2M4.7 11.2h1.7M17.6 11.2h1.7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  <svg *ngIf="prayer.isMaghrib" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
+                    <path
+                      d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 0 12 18.2a5.4 5.4 0 0 0 3.8-5.4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M12 5.8v1.7M6.8 8.3l1.2 1.2M17.2 8.3L16 9.5M4.7 12.5h1.7M17.6 12.5h1.7"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </div>
+            <div class="sunrise-display" *ngIf="prayer.isSunrise; else prayerSchedule">
+              <p class="prayer-time">{{ prayer.adhanTime }}</p>
+            </div>
+            <ng-template #prayerSchedule>
+              <div class="prayer-meta">
+                <div class="prayer-row">
+                  <p class="prayer-meta-label">Adhan</p>
+                  <p class="prayer-time">{{ prayer.adhanTime }}</p>
+                </div>
+                <div class="prayer-row">
+                  <p class="prayer-meta-label">Iqama</p>
+                  <p class="prayer-time">{{ prayer.iqamaTime }}</p>
+                </div>
+              </div>
+            </ng-template>
+          </article>
+        </div>
+      </section>
+    </main>
+  `,
+  styles: [
+    `
+      :host {
+        display: block;
+        height: 100vh;
+        color: #f7f2e8;
+        font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+        --bg-deep: #10231f;
+        --bg-mid: #17352f;
+        --card: rgba(10, 22, 20, 0.78);
+        --card-border: rgba(238, 222, 189, 0.18);
+        --accent: #d8b26e;
+        --accent-soft: #f0e1bf;
+        --muted: rgba(247, 242, 232, 0.72);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      .page {
+        height: 100vh;
+        padding: 24px 16px;
+        background:
+          radial-gradient(circle at top, rgba(216, 178, 110, 0.18), transparent 36%),
+          linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 52%, #0b1715 100%);
+      }
+
+      .hero,
+      .prayer-card {
+        width: min(1450px, 100%);
+        margin: 0 auto;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns:1fr 4fr 1.5fr 1.5fr;
+        gap: 24px;
+        align-items: stretch;
+        margin-bottom: 24px;
+      }
+
+      .nameplate {
+        display: grid;
+        align-content: center;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+
+      .clock-card,
+      .jumuaa-card,
+      .prayer-card,
+      .qr-code {
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 28px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+      }
+
+      .qr-code img {
+        border-radius: 28px;
+      }
+
+
+
+      .section-label,
+      .clock-label {
+        margin: 0 0 10px;
+        color: var(--accent);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h2 {
+        font-size: clamp(1.5rem, 4vw, 2rem);
+      }
+
+      .upcoming,
+      .clock-date,
+      .clock-hijri,
+      .status-message {
+        color: var(--muted);
+      }
+
+      .clock-card,
+      .jumuaa-card {
+        padding: 28px;
+        display: grid;
+        align-content: center;
+        gap: 10px;
+      }
+
+      .clock-time {
+        font-size: clamp(2.2rem, 5vw, 3.6rem);
+        color: var(--accent-soft);
+        line-height: 1;
+      }
+
+      .clock-primary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .moon-phase {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        min-width: 88px;
+        text-align: center;
+      }
+
+      .moon-phase img {
+        width: 88px;
+        height: 88px;
+        object-fit: cover;
+        border-radius: 20px;
+        border: 1px solid rgba(240, 225, 191, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .moon-phase-icon {
+        display: grid;
+        place-items: center;
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        border: 1px solid rgba(240, 225, 191, 0.14);
+        background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02));
+        color: var(--accent-soft);
+        font-size: 2.7rem;
+      }
+
+      .moon-phase.with-image .moon-phase-label {
+        max-width: 88px;
+      }
+
+      .moon-phase-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.2;
+      }
+
+      .jumuaa-times {
+        display: grid;
+        gap: 12px;
+      }
+
+      .jumuaa-slot {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(240, 225, 191, 0.12);
+      }
+
+      .jumuaa-slot:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .jumuaa-order {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.78rem;
+      }
+
+      .jumuaa-time {
+        font-size: 1.5rem;
+        color: var(--accent-soft);
+      }
+
+      .prayer-card {
+        padding: 28px;
+        margin-bottom: 24px;
+      }
+
+      .section-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 22px;
+      }
+
+      .upcoming {
+        text-align: right;
+      }
+
+      .status-message {
+        margin-bottom: 18px;
+      }
+
+      .status-message.error {
+        color: #f2b4a5;
+      }
+
+      .prayer-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .prayer-tile {
+        padding: 18px;
+        border-radius: 22px;
+        border: 1px solid rgba(240, 225, 191, 0.1);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+      }
+
+      .prayer-tile.active {
+        background: linear-gradient(180deg, rgba(216, 178, 110, 0.26), rgba(216, 178, 110, 0.12));
+        border-color: rgba(216, 178, 110, 0.55);
+      }
+
+      .prayer-name {
+        font-size: 1.1rem;
+      }
+
+      .prayer-heading {
+        margin-bottom: 18px;
+      }
+
+      .prayer-title-with-icon {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+      }
+
+      .prayer-title-copy {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .prayer-title-icon {
+        display: inline-flex;
+        width: 22px;
+        height: 22px;
+        color: var(--accent);
+        flex: 0 0 auto;
+        margin-left: auto;
+      }
+
+      .prayer-icon {
+        width: 100%;
+        height: 100%;
+      }
+
+      .prayer-arabic {
+        color: var(--accent-soft);
+      }
+
+      .prayer-meta {
+        display: grid;
+        gap: 14px;
+      }
+
+      .sunrise-display {
+        display: grid;
+        align-items: end;
+        min-height: 74px;
+      }
+
+      .prayer-meta-label {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.72rem;
+      }
+
+      .prayer-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: baseline;
+        gap: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(240, 225, 191, 0.1);
+      }
+
+      .prayer-row:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .prayer-time {
+        font-size: 1.55rem;
+        justify-self: end;
+        text-align: right;
+      }
+
+      @media (max-width: 900px) {
+        .hero,
+        .prayer-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .nameplate {
+          justify-items: start;
+        }
+
+        .clock-primary {
+          align-items: start;
+        }
+
+        .nameplate-line-arabic {
+          text-align: left;
+        }
+
+        .section-heading {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .upcoming {
+          text-align: left;
+        }
+
+        .prayer-row {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .prayer-time {
+          justify-self: start;
+          text-align: left;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          padding: 14px 10px;
+        }
+
+        .clock-card,
+        .jumuaa-card,
+        .prayer-card {
+          padding: 22px;
+          border-radius: 22px;
+        }
+      }
+    `,
+  ],
+})
+export class AppComponent {
+  readonly now = signal(new Date());
+  readonly prayerTimesState = signal<PrayerTime[]>(this.getFallbackPrayerTimes());
+  readonly moonPhase = signal<MoonPhase>(this.getMoonPhaseFallback(this.createMontrealIsoDate(this.getDatePartsInZone(new Date()))));
+  readonly loadingPrayerTimes = signal(true);
+  readonly prayerTimesError = signal('');
+  readonly loadedPrayerDate = signal('');
+  readonly loadedMoonPhaseDate = signal('');
+  readonly jumuaaPrayers = signal([...JUMUAAH_PRAYERS]);
+
+  readonly montrealNow = computed(() => this.getDatePartsInZone(this.now()));
+  readonly currentTime = computed(() =>
+    this.now().toLocaleTimeString('en-CA', {
+      timeZone: TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }),
+  );
+  readonly gregorianLongDate = computed(() =>
+    this.now().toLocaleDateString('en-CA', {
+      timeZone: TIME_ZONE,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+  );
+  readonly hijriLongDate = computed(() => {
+    const parts = this.montrealNow();
+    const current = this.createDateInTimeZone(parts.year, parts.month, parts.day);
+    return current.toLocaleDateString('en-TN-u-ca-islamic', {
+      timeZone: TIME_ZONE,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  });
+  readonly prayerTimes = computed(() => this.prayerTimesState());
+  readonly nextPrayerName = computed(() => {
+    const prayers = this.prayerTimes();
+    const currentMinutes = this.montrealNow().hour * 60 + this.montrealNow().minute;
+    return prayers.find((prayer) => prayer.adhanMinutes > currentMinutes)?.name ?? prayers[0]?.name ?? '';
+  });
+  readonly upcomingPrayerLabel = computed(() => {
+    const prayers = this.prayerTimes();
+    if (this.loadingPrayerTimes()) {
+      return 'Updating from AlAdhan...';
+    }
+    if (!prayers.length) {
+      return 'Prayer times unavailable';
+    }
+
+    const currentMinutes = this.montrealNow().hour * 60 + this.montrealNow().minute;
+    const nextPrayer = prayers.find((prayer) => prayer.adhanMinutes > currentMinutes);
+    if (nextPrayer) {
+      return `Next: ${nextPrayer.name} at ${nextPrayer.adhanTime}`;
+    }
+
+    const firstPrayer = prayers[0];
+    return `Tomorrow starts with ${firstPrayer.name} at ${firstPrayer.adhanTime}`;
+  });
+
+  private readonly timer = window.setInterval(() => {
+    this.now.set(new Date());
+    void this.refreshPrayerTimesIfNeeded();
+    void this.refreshMoonPhaseIfNeeded();
+  }, 1000);
+
+  constructor() {
+    void this.refreshPrayerTimesIfNeeded();
+    void this.refreshMoonPhaseIfNeeded();
+  }
+
+  ngOnDestroy(): void {
+    window.clearInterval(this.timer);
+  }
+
+  jumuaaOrderLabel(index: number): string {
+    return ['First', 'Second', 'Third'][index] ?? `#${index + 1}`;
+  }
+
+  private getFallbackPrayerTimes(): PrayerTime[] {
+    return DISPLAYED_PRAYERS.map((prayer, index) => ({
+      name: prayer.name,
+      arabic: prayer.arabic,
+      adhanTime: '--:--',
+      adhanMinutes: Number.MAX_SAFE_INTEGER - index,
+      iqamaTime: this.getIqamaTime('--:--', prayer.name),
+      isSunrise: prayer.name === 'Sunrise',
+      isMaghrib: prayer.name === 'Maghrib',
+    }));
+  }
+
+  private async refreshPrayerTimesIfNeeded(): Promise<void> {
+    const parts = this.montrealNow();
+    const requestDate = `${String(parts.day).padStart(2, '0')}-${String(parts.month).padStart(2, '0')}-${parts.year}`;
+
+    if (this.loadedPrayerDate() === requestDate) {
+      return;
+    }
+
+    this.loadedPrayerDate.set(requestDate);
+    this.loadingPrayerTimes.set(true);
+    this.prayerTimesError.set('');
+
+    try {
+      const response = await fetch(this.buildPrayerTimesUrl(requestDate));
+      if (!response.ok) {
+        throw new Error(`Prayer API returned ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { data?: { timings?: Record<string, string> } };
+      const timings = payload.data?.timings;
+      if (!timings) {
+        throw new Error('Prayer API response missing timings');
+      }
+
+      this.prayerTimesState.set(this.mapPrayerTimes(timings));
+    } catch {
+      this.prayerTimesError.set('Unable to load live prayer times. Showing placeholders.');
+      this.prayerTimesState.set(this.getFallbackPrayerTimes());
+    } finally {
+      this.loadingPrayerTimes.set(false);
+    }
+  }
+
+  private async refreshMoonPhaseIfNeeded(): Promise<void> {
+    const requestDate = this.createMontrealIsoDate(this.montrealNow());
+    if (this.loadedMoonPhaseDate() === requestDate) {
+      return;
+    }
+
+    this.loadedMoonPhaseDate.set(requestDate);
+
+    const fallback = this.getMoonPhaseFallback(requestDate);
+    if (!ASTRONOMY_API_AUTH) {
+      this.moonPhase.set(fallback);
+      return;
+    }
+
+    try {
+      const response = await fetch('https://api.astronomyapi.com/api/v2/studio/moon-phase', {
+        method: 'POST',
+        headers: {
+          Authorization: this.formatAstronomyAuthHeader(ASTRONOMY_API_AUTH),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          format: 'png',
+          style: {
+            moonStyle: 'shaded',
+            backgroundStyle: 'solid',
+            backgroundColor: '#10231f',
+            headingColor: '#f0e1bf',
+            textColor: '#f7f2e8',
+          },
+          observer: {
+            latitude: MONTREAL_COORDINATES.latitude,
+            longitude: MONTREAL_COORDINATES.longitude,
+            date: requestDate,
+          },
+          view: {
+            type: 'portrait-simple',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Astronomy API returned ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { data?: { imageUrl?: string } };
+      this.moonPhase.set({
+        ...fallback,
+        imageUrl: payload.data?.imageUrl ?? '',
+      });
+    } catch {
+      this.moonPhase.set(fallback);
+    }
+  }
+
+  private buildPrayerTimesUrl(date: string): string {
+    const params = new URLSearchParams({
+      city: PRAYER_CITY,
+      country: PRAYER_COUNTRY,
+      method: String(PRAYER_METHOD),
+      school: String(PRAYER_SCHOOL),
+      timezonestring: TIME_ZONE,
+    });
+
+    return `https://api.aladhan.com/v1/timingsByCity/${date}?${params.toString()}`;
+  }
+
+  private mapPrayerTimes(timings: Record<string, string>): PrayerTime[] {
+    return DISPLAYED_PRAYERS.map((prayer) => {
+      const rawTime = timings[prayer.name] ?? '--:--';
+      return {
+        name: prayer.name,
+        arabic: prayer.arabic,
+        adhanTime: this.formatPrayerTime(rawTime),
+        adhanMinutes: this.parsePrayerMinutes(rawTime),
+        iqamaTime: this.getIqamaTime(rawTime, prayer.name),
+        isSunrise: prayer.name === 'Sunrise',
+        isMaghrib: prayer.name === 'Maghrib',
+      };
+    });
+  }
+
+  private formatPrayerTime(rawTime: string): string {
+    const time = this.extractClockValue(rawTime);
+    if (!time) {
+      return '--:--';
+    }
+
+    const [hours, minutes] = time.split(':').map(Number);
+    const date = new Date(2000, 0, 1, hours, minutes);
+    return date.toLocaleTimeString('en-CA', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  private parsePrayerMinutes(rawTime: string): number {
+    const time = this.extractClockValue(rawTime);
+    if (!time) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  private getIqamaTime(rawTime: string, prayerName: PrayerName): string {
+    const offset = IQAMA_OFFSETS_MINUTES[prayerName];
+    const adhanMinutes = this.parsePrayerMinutes(rawTime);
+
+    if (offset === null || adhanMinutes === Number.MAX_SAFE_INTEGER) {
+      return '--:--';
+    }
+
+    return this.formatMinutesAsTime(adhanMinutes + offset);
+  }
+
+  private formatMinutesAsTime(totalMinutes: number): string {
+    const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+    const hours = Math.floor(normalizedMinutes / 60);
+    const minutes = normalizedMinutes % 60;
+    const date = new Date(2000, 0, 1, hours, minutes);
+
+    return date.toLocaleTimeString('en-CA', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  private extractClockValue(rawTime: string): string | null {
+    const match = rawTime.match(/\d{2}:\d{2}/);
+    return match ? match[0] : null;
+  }
+
+  private getMoonPhaseFallback(isoDate: string): MoonPhase {
+    const phaseAge = this.getMoonAgeInDays(isoDate);
+
+    if (phaseAge < 1.84566) {
+      return { label: 'New Moon', icon: '🌑', imageUrl: '' };
+    }
+    if (phaseAge < 5.53699) {
+      return { label: 'Waxing Crescent', icon: '🌒', imageUrl: '' };
+    }
+    if (phaseAge < 9.22831) {
+      return { label: 'First Quarter', icon: '🌓', imageUrl: '' };
+    }
+    if (phaseAge < 12.91963) {
+      return { label: 'Waxing Gibbous', icon: '🌔', imageUrl: '' };
+    }
+    if (phaseAge < 16.61096) {
+      return { label: 'Full Moon', icon: '🌕', imageUrl: '' };
+    }
+    if (phaseAge < 20.30228) {
+      return { label: 'Waning Gibbous', icon: '🌖', imageUrl: '' };
+    }
+    if (phaseAge < 23.99361) {
+      return { label: 'Last Quarter', icon: '🌗', imageUrl: '' };
+    }
+    if (phaseAge < 27.68493) {
+      return { label: 'Waning Crescent', icon: '🌘', imageUrl: '' };
+    }
+
+    return { label: 'New Moon', icon: '🌑', imageUrl: '' };
+  }
+
+  private getMoonAgeInDays(isoDate: string): number {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const date = this.createDateInTimeZone(year, month, day, 12);
+    const knownNewMoonUtc = Date.UTC(2000, 0, 6, 18, 14, 0);
+    const synodicMonthDays = 29.53058867;
+    const age = (date.getTime() - knownNewMoonUtc) / 86400000;
+
+    return ((age % synodicMonthDays) + synodicMonthDays) % synodicMonthDays;
+  }
+
+  private formatAstronomyAuthHeader(value: string): string {
+    return value.startsWith('Basic ') ? value : `Basic ${value}`;
+  }
+
+  private getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const map = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+    const asUtc = Date.UTC(
+      Number(map.year),
+      Number(map.month) - 1,
+      Number(map.day),
+      Number(map.hour),
+      Number(map.minute),
+      Number(map.second),
+    );
+
+    return (asUtc - date.getTime()) / 60000;
+  }
+
+  private getDatePartsInZone(date: Date): DateParts {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: TIME_ZONE,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const map = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+
+    return {
+      year: Number(map.year),
+      month: Number(map.month),
+      day: Number(map.day),
+      hour: Number(map.hour),
+      minute: Number(map.minute),
+      second: Number(map.second),
+    };
+  }
+
+  private createMontrealIsoDate(parts: DateParts): string {
+    return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+  }
+
+  private createDateInTimeZone(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): Date {
+    const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    const offset = this.getTimeZoneOffsetMinutes(utcGuess, TIME_ZONE);
+    return new Date(utcGuess.getTime() - offset * 60000);
+  }
+}
