@@ -34,8 +34,6 @@ type DuaaItem = {
 };
 
 const TIME_ZONE = 'America/Toronto';
-const PRAYER_CITY = 'Montreal';
-const PRAYER_COUNTRY = 'CA';
 const PRAYER_METHOD = 2;
 const PRAYER_SCHOOL = 0;
 const MONTREAL_COORDINATES = {
@@ -164,8 +162,8 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
                 <div class="prayer-heading">
                   <div class="prayer-title-with-icon">
                     <div class="prayer-title-copy">
-                      <p class="prayer-name">{{ prayer.name }}</p>
-                      <p class="prayer-arabic">{{ prayer.arabic }}</p>
+                      <p class="prayer-name">{{ prayerDisplayName(prayer) }}</p>
+                      <p class="prayer-arabic">{{ prayerDisplayArabic(prayer) }}</p>
                     </div>
                     <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
                       <svg *ngIf="prayer.isSunrise" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
@@ -645,6 +643,7 @@ export class AppComponent {
   readonly viewportWidth = signal(window.innerWidth);
   readonly viewportHeight = signal(window.innerHeight);
   readonly prayerTimesState = signal<PrayerTime[]>(this.getFallbackPrayerTimes());
+  readonly tomorrowFajrState = signal<PrayerTime | null>(null);
   readonly moonPhase = signal<MoonPhase>(this.getMoonPhaseFallback(this.createMontrealIsoDate(this.getDatePartsInZone(new Date()))));
   readonly loadingPrayerTimes = signal(true);
   readonly prayerTimesError = signal('');
@@ -698,8 +697,8 @@ export class AppComponent {
     }
 
     const nextEvent = this.getNextPrayerEvent();
-    if (nextEvent.prayerName && nextEvent.eventLabel && nextEvent.remainingSeconds !== null) {
-      return `Next: ${nextEvent.prayerName} ${nextEvent.eventLabel} in ${this.formatEventCountdown(nextEvent.remainingSeconds)}`;
+    if (nextEvent.displayName && nextEvent.eventLabel && nextEvent.remainingSeconds !== null) {
+      return `Next: ${nextEvent.displayName} ${nextEvent.eventLabel} in ${this.formatEventCountdown(nextEvent.remainingSeconds)}`;
     }
 
     const firstPrayer = prayers[0];
@@ -739,6 +738,14 @@ export class AppComponent {
     return ['First', 'Second', 'Third'][index] ?? `#${index + 1}`;
   }
 
+  prayerDisplayName(prayer: PrayerTime): string {
+    return this.isTomorrowFajrPrayer(prayer) ? "Fajr tomorrow" : prayer.name;
+  }
+
+  prayerDisplayArabic(prayer: PrayerTime): string {
+    return this.isTomorrowFajrPrayer(prayer) ? 'الفجر غدا' : prayer.arabic;
+  }
+
   private getFallbackPrayerTimes(): PrayerTime[] {
     return DISPLAYED_PRAYERS.map((prayer, index) => ({
       name: prayer.name,
@@ -754,7 +761,7 @@ export class AppComponent {
 
   private async refreshPrayerTimesIfNeeded(): Promise<void> {
     const parts = this.montrealNow();
-    const requestDate = `${String(parts.day).padStart(2, '0')}-${String(parts.month).padStart(2, '0')}-${parts.year}`;
+    const requestDate = this.formatAlAdhanRequestDate(parts);
 
     if (this.loadedPrayerDate() === requestDate) {
       return;
@@ -765,21 +772,19 @@ export class AppComponent {
     this.prayerTimesError.set('');
 
     try {
-      const response = await fetch(this.buildPrayerTimesUrl(requestDate));
-      if (!response.ok) {
-        throw new Error(`Prayer API returned ${response.status}`);
-      }
-
-      const payload = (await response.json()) as { data?: { timings?: Record<string, string> } };
-      const timings = payload.data?.timings;
-      if (!timings) {
-        throw new Error('Prayer API response missing timings');
-      }
+      const tomorrowParts = this.getDatePartsInZone(this.createDateInTimeZone(parts.year, parts.month, parts.day + 1, 12));
+      const tomorrowRequestDate = this.formatAlAdhanRequestDate(tomorrowParts);
+      const [timings, tomorrowTimings] = await Promise.all([
+        this.fetchPrayerTimings(requestDate),
+        this.fetchPrayerTimings(tomorrowRequestDate),
+      ]);
 
       this.prayerTimesState.set(this.mapPrayerTimes(timings));
+      this.tomorrowFajrState.set(this.mapPrayerTime('Fajr', tomorrowTimings.Fajr ?? '--:--'));
     } catch {
       this.prayerTimesError.set('Unable to load live prayer times. Showing placeholders.');
       this.prayerTimesState.set(this.getFallbackPrayerTimes());
+      this.tomorrowFajrState.set(null);
     } finally {
       this.loadingPrayerTimes.set(false);
     }
@@ -843,30 +848,18 @@ export class AppComponent {
 
   private buildPrayerTimesUrl(date: string): string {
     const params = new URLSearchParams({
-      city: PRAYER_CITY,
-      country: PRAYER_COUNTRY,
+      latitude: String(MONTREAL_COORDINATES.latitude),
+      longitude: String(MONTREAL_COORDINATES.longitude),
       method: String(PRAYER_METHOD),
       school: String(PRAYER_SCHOOL),
       timezonestring: TIME_ZONE,
     });
 
-    return `https://api.aladhan.com/v1/timingsByCity/${date}?${params.toString()}`;
+    return `https://api.aladhan.com/v1/timings/${date}?${params.toString()}`;
   }
 
   private mapPrayerTimes(timings: Record<string, string>): PrayerTime[] {
-    return DISPLAYED_PRAYERS.map((prayer) => {
-      const rawTime = timings[prayer.name] ?? '--:--';
-      return {
-        name: prayer.name,
-        arabic: prayer.arabic,
-        adhanTime: this.formatPrayerTime(rawTime),
-        adhanMinutes: this.parsePrayerMinutes(rawTime),
-        iqamaTime: this.getIqamaTime(rawTime, prayer.name),
-        iqamaMinutes: this.parsePrayerMinutes(this.getIqamaTime(rawTime, prayer.name)),
-        isSunrise: prayer.name === 'Sunrise',
-        isMaghrib: prayer.name === 'Maghrib',
-      };
-    });
+    return DISPLAYED_PRAYERS.map((prayer) => this.mapPrayerTime(prayer.name, timings[prayer.name] ?? '--:--'));
   }
 
   private formatPrayerTime(rawTime: string): string {
@@ -920,6 +913,7 @@ export class AppComponent {
 
   private getNextPrayerEvent(): {
     prayerName: PrayerName | null;
+    displayName: string | null;
     eventLabel: 'Adhan' | 'Iqama' | null;
     remainingSeconds: number | null;
   } {
@@ -929,31 +923,83 @@ export class AppComponent {
       .flatMap((prayer) => [
         {
           prayerName: prayer.name,
+          displayName: prayer.name,
           eventLabel: 'Adhan' as const,
           eventSeconds: prayer.adhanMinutes * 60,
         },
         {
           prayerName: prayer.name,
+          displayName: prayer.name,
           eventLabel: 'Iqama' as const,
           eventSeconds: prayer.iqamaMinutes * 60,
         },
       ])
       .filter((event) => Number.isFinite(event.eventSeconds) && event.eventSeconds < Number.MAX_SAFE_INTEGER)
       .sort((left, right) => left.eventSeconds - right.eventSeconds);
+    const lastTodayEventSeconds = events.at(-1)?.eventSeconds ?? null;
 
     const nextEvent = events.find((event) => event.eventSeconds > currentSeconds);
     if (nextEvent) {
       return {
         prayerName: nextEvent.prayerName,
+        displayName: nextEvent.displayName,
         eventLabel: nextEvent.eventLabel,
         remainingSeconds: nextEvent.eventSeconds - currentSeconds,
       };
     }
 
+    const tomorrowFajr = this.tomorrowFajrState();
+    if (
+      tomorrowFajr &&
+      tomorrowFajr.adhanMinutes < Number.MAX_SAFE_INTEGER &&
+      lastTodayEventSeconds !== null &&
+      currentSeconds > lastTodayEventSeconds
+    ) {
+      const tomorrowFajrSeconds = tomorrowFajr.adhanMinutes * 60 + 86400 - currentSeconds;
+      return {
+        prayerName: tomorrowFajr.name,
+        displayName: `Tomorrow's ${tomorrowFajr.name}`,
+        eventLabel: 'Adhan',
+        remainingSeconds: tomorrowFajrSeconds,
+      };
+    }
+
     return {
       prayerName: null,
+      displayName: null,
       eventLabel: null,
       remainingSeconds: null,
+    };
+  }
+
+  private async fetchPrayerTimings(date: string): Promise<Record<string, string>> {
+    const response = await fetch(this.buildPrayerTimesUrl(date));
+    if (!response.ok) {
+      throw new Error(`Prayer API returned ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { data?: { timings?: Record<string, string> } };
+    const timings = payload.data?.timings;
+    if (!timings) {
+      throw new Error('Prayer API response missing timings');
+    }
+
+    return timings;
+  }
+
+  private mapPrayerTime(prayerName: PrayerName, rawTime: string): PrayerTime {
+    const prayer = DISPLAYED_PRAYERS.find((item) => item.name === prayerName);
+    const iqamaTime = this.getIqamaTime(rawTime, prayerName);
+
+    return {
+      name: prayerName,
+      arabic: prayer?.arabic ?? '',
+      adhanTime: this.formatPrayerTime(rawTime),
+      adhanMinutes: this.parsePrayerMinutes(rawTime),
+      iqamaTime,
+      iqamaMinutes: this.parsePrayerMinutes(iqamaTime),
+      isSunrise: prayerName === 'Sunrise',
+      isMaghrib: prayerName === 'Maghrib',
     };
   }
 
@@ -967,6 +1013,11 @@ export class AppComponent {
     }
 
     return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  }
+
+  private isTomorrowFajrPrayer(prayer: PrayerTime): boolean {
+    const nextEvent = this.getNextPrayerEvent();
+    return nextEvent.displayName === "Tomorrow's Fajr" && prayer.name === 'Fajr';
   }
 
   private formatMinutesAsTime(totalMinutes: number): string {
@@ -1095,6 +1146,10 @@ export class AppComponent {
 
   private createMontrealIsoDate(parts: DateParts): string {
     return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+  }
+
+  private formatAlAdhanRequestDate(parts: DateParts): string {
+    return `${String(parts.day).padStart(2, '0')}-${String(parts.month).padStart(2, '0')}-${parts.year}`;
   }
 
   private createDateInTimeZone(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): Date {
