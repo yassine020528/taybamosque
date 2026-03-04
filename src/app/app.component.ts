@@ -166,40 +166,8 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
                       <p class="prayer-arabic">{{ prayerDisplayArabic(prayer) }}</p>
                     </div>
                     <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
-                      <svg *ngIf="prayer.isSunrise" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
-                        <path
-                          d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 1 12 7.4a5.4 5.4 0 0 1 3.8 5.4"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.7"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                        <path
-                          d="M12 4.5v1.7M6.8 7l1.2 1.2M17.2 7L16 8.2M4.7 11.2h1.7M17.6 11.2h1.7"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.7"
-                          stroke-linecap="round"
-                        />
-                      </svg>
-                      <svg *ngIf="prayer.isMaghrib" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
-                        <path
-                          d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 0 12 18.2a5.4 5.4 0 0 0 3.8-5.4"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.7"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                        <path
-                          d="M12 5.8v1.7M6.8 8.3l1.2 1.2M17.2 8.3L16 9.5M4.7 12.5h1.7M17.6 12.5h1.7"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.7"
-                          stroke-linecap="round"
-                        />
-                      </svg>
+                      <img *ngIf="prayer.isSunrise" src="/assets/sunrise.png" alt="" class="prayer-icon" />
+                      <img *ngIf="prayer.isMaghrib" src="/assets/sunset.png" alt="" class="prayer-icon" />
                     </span>
                   </div>
                 </div>
@@ -578,6 +546,8 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
       .prayer-icon {
         width: 100%;
         height: 100%;
+        object-fit: contain;
+        display: block;
       }
 
       .prayer-arabic {
@@ -722,16 +692,26 @@ export class AppComponent {
     this.viewportWidth.set(window.innerWidth);
     this.viewportHeight.set(window.innerHeight);
   };
+  private readonly handleKeydown = (event: KeyboardEvent) => {
+    if (event.key.toLowerCase() !== 'f' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    void this.toggleFullscreen();
+  };
 
   constructor() {
     void this.refreshPrayerTimesIfNeeded();
     void this.refreshMoonPhaseIfNeeded();
     window.addEventListener('resize', this.handleResize);
+    window.addEventListener('keydown', this.handleKeydown);
   }
 
   ngOnDestroy(): void {
     window.clearInterval(this.timer);
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('keydown', this.handleKeydown);
   }
 
   jumuaaOrderLabel(index: number): string {
@@ -1018,6 +998,15 @@ export class AppComponent {
   private isTomorrowFajrPrayer(prayer: PrayerTime): boolean {
     const nextEvent = this.getNextPrayerEvent();
     return nextEvent.displayName === "Tomorrow's Fajr" && prayer.name === 'Fajr';
+  }
+
+  private async toggleFullscreen(): Promise<void> {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    await document.documentElement.requestFullscreen();
   }
 
   private formatMinutesAsTime(totalMinutes: number): string {
