@@ -63,125 +63,136 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <main class="page">
-      <section class="hero">
-        <div class="nameplate" aria-label="Masjid Tayba">
-          <img src="assets/tayba.png" alt="Masjid Tayba logo" width="100%" height="100%" />
-        </div>
-
-        <div class="clock-card">
-          <div class="clock-info">
-            <p class="clock-label">Current Montreal Time</p>
-            <div class="clock-primary">
-              <p class="clock-time">{{ currentTime() }}</p>
+    <main class="viewport-shell">
+      <div
+        class="stage"
+        [style.width.px]="scaledStageWidth()"
+        [style.height.px]="scaledStageHeight()"
+      >
+        <div
+          class="stage__canvas"
+          [style.transform]="'scale(' + stageScale() + ')'"
+        >
+          <section class="hero">
+            <div class="nameplate" aria-label="Masjid Tayba">
+              <img src="assets/tayba.png" alt="Masjid Tayba logo" width="100%" height="100%" />
             </div>
-            <p class="clock-date">{{ gregorianLongDate() }}</p>
-            <p class="clock-hijri">{{ hijriLongDate() }}</p>
-          </div>
-          <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
-              <img *ngIf="moonPhase().imageUrl; else moonIcon" [src]="moonPhase().imageUrl" [alt]="moonPhase().label" />
-              <ng-template #moonIcon>
-                <span class="moon-phase-icon" aria-hidden="true">{{ moonPhase().icon }}</span>
-              </ng-template>
-              <p class="moon-phase-label">Moon Phase</p>
-          </div>
-        </div>
 
-        <div class="jumuaa-card">
-          <p class="clock-label">Jumuah Prayers</p>
-          <div class="jumuaa-times">
-            <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
-              <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
-              <p class="jumuaa-time">{{ prayer }}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="qr-code" aria-label="QR Code">
-          <img src="assets/qr.png" alt="QR Code" width="100%" height="100%" />
-        </div>
-      </section>
-
-      <section class="prayer-card">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">Today's Schedule</p>
-            <h2>Prayer Times</h2>
-          </div>
-          <p class="upcoming">{{ upcomingPrayerLabel() }}</p>
-        </div>
-
-        <p *ngIf="loadingPrayerTimes()" class="status-message">Loading prayer times...</p>
-        <p *ngIf="prayerTimesError()" class="status-message error">{{ prayerTimesError() }}</p>
-
-        <div class="prayer-grid">
-          <article
-            *ngFor="let prayer of prayerTimes()"
-            class="prayer-tile"
-            [class.active]="prayer.name === nextPrayerName()"
-          >
-            <div class="prayer-heading">
-              <div class="prayer-title-with-icon">
-                <div class="prayer-title-copy">
-                  <p class="prayer-name">{{ prayer.name }}</p>
-                  <p class="prayer-arabic">{{ prayer.arabic }}</p>
+            <div class="clock-card">
+              <div class="clock-info">
+                <p class="clock-label">Current Montreal Time</p>
+                <div class="clock-primary">
+                  <p class="clock-time">{{ currentTime() }}</p>
                 </div>
-                <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
-                  <svg *ngIf="prayer.isSunrise" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
-                    <path
-                      d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 1 12 7.4a5.4 5.4 0 0 1 3.8 5.4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.7"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M12 4.5v1.7M6.8 7l1.2 1.2M17.2 7L16 8.2M4.7 11.2h1.7M17.6 11.2h1.7"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.7"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                  <svg *ngIf="prayer.isMaghrib" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
-                    <path
-                      d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 0 12 18.2a5.4 5.4 0 0 0 3.8-5.4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.7"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M12 5.8v1.7M6.8 8.3l1.2 1.2M17.2 8.3L16 9.5M4.7 12.5h1.7M17.6 12.5h1.7"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.7"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                </span>
+                <p class="clock-date">{{ gregorianLongDate() }}</p>
+                <p class="clock-hijri">{{ hijriLongDate() }}</p>
+              </div>
+              <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
+                  <img *ngIf="moonPhase().imageUrl; else moonIcon" [src]="moonPhase().imageUrl" [alt]="moonPhase().label" />
+                  <ng-template #moonIcon>
+                    <span class="moon-phase-icon" aria-hidden="true">{{ moonPhase().icon }}</span>
+                  </ng-template>
+                  <p class="moon-phase-label">Moon Phase</p>
               </div>
             </div>
-            <div class="sunrise-display" *ngIf="prayer.isSunrise; else prayerSchedule">
-              <p class="prayer-time">{{ prayer.adhanTime }}</p>
+
+            <div class="jumuaa-card">
+              <p class="clock-label">Jumuah Prayers</p>
+              <div class="jumuaa-times">
+                <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
+                  <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
+                  <p class="jumuaa-time">{{ prayer }}</p>
+                </div>
+              </div>
             </div>
-            <ng-template #prayerSchedule>
-              <div class="prayer-meta">
-                <div class="prayer-row">
-                  <p class="prayer-meta-label">Adhan</p>
+
+            <div class="qr-code" aria-label="QR Code">
+              <img src="assets/qr.png" alt="QR Code" width="100%" height="100%" />
+            </div>
+          </section>
+
+          <section class="prayer-card">
+            <div class="section-heading">
+              <div>
+                <p class="section-label">Today's Schedule</p>
+                <h2>Prayer Times</h2>
+              </div>
+              <p class="upcoming">{{ upcomingPrayerLabel() }}</p>
+            </div>
+
+            <p *ngIf="loadingPrayerTimes()" class="status-message">Loading prayer times...</p>
+            <p *ngIf="prayerTimesError()" class="status-message error">{{ prayerTimesError() }}</p>
+
+            <div class="prayer-grid">
+              <article
+                *ngFor="let prayer of prayerTimes()"
+                class="prayer-tile"
+                [class.active]="prayer.name === nextPrayerName()"
+              >
+                <div class="prayer-heading">
+                  <div class="prayer-title-with-icon">
+                    <div class="prayer-title-copy">
+                      <p class="prayer-name">{{ prayer.name }}</p>
+                      <p class="prayer-arabic">{{ prayer.arabic }}</p>
+                    </div>
+                    <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
+                      <svg *ngIf="prayer.isSunrise" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
+                        <path
+                          d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 1 12 7.4a5.4 5.4 0 0 1 3.8 5.4"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.7"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                        <path
+                          d="M12 4.5v1.7M6.8 7l1.2 1.2M17.2 7L16 8.2M4.7 11.2h1.7M17.6 11.2h1.7"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.7"
+                          stroke-linecap="round"
+                        />
+                      </svg>
+                      <svg *ngIf="prayer.isMaghrib" viewBox="0 0 24 24" class="prayer-icon" focusable="false">
+                        <path
+                          d="M4 15h16M6 18h12M8.2 12.8A5.4 5.4 0 0 0 12 18.2a5.4 5.4 0 0 0 3.8-5.4"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.7"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                        <path
+                          d="M12 5.8v1.7M6.8 8.3l1.2 1.2M17.2 8.3L16 9.5M4.7 12.5h1.7M17.6 12.5h1.7"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.7"
+                          stroke-linecap="round"
+                        />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+                <div class="sunrise-display" *ngIf="prayer.isSunrise; else prayerSchedule">
                   <p class="prayer-time">{{ prayer.adhanTime }}</p>
                 </div>
-                <div class="prayer-row">
-                  <p class="prayer-meta-label">Iqama</p>
-                  <p class="prayer-time">{{ prayer.iqamaTime }}</p>
-                </div>
-              </div>
-            </ng-template>
-          </article>
+                <ng-template #prayerSchedule>
+                  <div class="prayer-meta">
+                    <div class="prayer-row">
+                      <p class="prayer-meta-label">Adhan</p>
+                      <p class="prayer-time">{{ prayer.adhanTime }}</p>
+                    </div>
+                    <div class="prayer-row">
+                      <p class="prayer-meta-label">Iqama</p>
+                      <p class="prayer-time">{{ prayer.iqamaTime }}</p>
+                    </div>
+                  </div>
+                </ng-template>
+              </article>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </main>
   `,
   styles: [
@@ -189,6 +200,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       :host {
         display: block;
         height: 100vh;
+        overflow: hidden;
         color: #f7f2e8;
         font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
         --bg-deep: #10231f;
@@ -204,26 +216,43 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         box-sizing: border-box;
       }
 
-      .page {
+      .viewport-shell {
+        display: grid;
+        place-items: center;
         height: 100vh;
-        padding: 24px 16px;
+        width: 100vw;
+        overflow: hidden;
         background:
           radial-gradient(circle at top, rgba(216, 178, 110, 0.18), transparent 36%),
           linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 52%, #0b1715 100%);
       }
 
+      .stage {
+        position: relative;
+        flex: 0 0 auto;
+      }
+
+      .stage__canvas {
+        position: absolute;
+        inset: 0 auto auto 0;
+        width: 1920px;
+        height: 1080px;
+        transform-origin: top left;
+      }
+
       .hero,
       .prayer-card {
-        width: min(1450px, 100%);
+        width: 1856px;
         margin: 0 auto;
       }
 
       .hero {
         display: grid;
-        grid-template-columns:1fr 4fr 1.5fr 1.5fr;
-        gap: 24px;
+        grid-template-columns: 240px 1.65fr 0.88fr 0.88fr;
+        gap: 28px;
         align-items: stretch;
-        margin-bottom: 24px;
+        margin-bottom: 28px;
+        padding-top: 24px;
       }
 
       .nameplate {
@@ -231,6 +260,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         align-content: center;
         gap: 0.2rem;
         min-width: 0;
+        min-height: 248px;
       }
 
       .clock-card,
@@ -252,11 +282,11 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .section-label,
       .clock-label {
-        margin: 0 0 10px;
+        margin: 0 0 12px;
         color: var(--accent);
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        font-size: 0.78rem;
+        font-size: 15px;
       }
 
       h1,
@@ -266,7 +296,7 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       h2 {
-        font-size: clamp(1.5rem, 4vw, 2rem);
+        font-size: 40px;
       }
 
       .upcoming,
@@ -278,10 +308,10 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .clock-card,
       .jumuaa-card {
-        padding: 28px;
+        padding: 34px;
         display: grid;
         align-content: center;
-        gap: 10px;
+        gap: 14px;
       }
 
       .clock-card {
@@ -289,16 +319,16 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         /* Split into two columns: Left for text, Right for moon */
         grid-template-columns: 1fr auto; 
         align-items: center; /* Vertically centers the moon with the text */
-        gap: 20px;
+        gap: 24px;
       }
         .clock-info {
           display: flex;
           flex-direction: column;
-          gap: 8px; /* Consistent spacing between time and dates */
+          gap: 10px; /* Consistent spacing between time and dates */
         }
 
       .clock-time {
-        font-size: clamp(2.2rem, 5vw, 3.6rem);
+        font-size: 72px;
         color: var(--accent-soft);
         line-height: 1;
       }
@@ -313,14 +343,14 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       .moon-phase {
         display: grid;
         justify-items: center;
-        gap: 8px;
-        min-width: 88px;
+        gap: 10px;
+        min-width: 104px;
         text-align: center;
       }
 
       .moon-phase img {
-        width: 100px;
-        height: 100px;
+        width: 116px;
+        height: 116px;
         object-fit: none; /* Prevents the image from stretching */
         object-position: -50px -50px; /* Shifts the image: -Left -Top */
         border-radius: 50%; /* Optional: creates a clean circular crop */
@@ -329,36 +359,36 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       .moon-phase-icon {
         display: grid;
         place-items: center;
-        width: 88px;
-        height: 88px;
+        width: 104px;
+        height: 104px;
         border-radius: 50%;
         border: 1px solid rgba(240, 225, 191, 0.14);
         background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02));
         color: var(--accent-soft);
-        font-size: 2.7rem;
+        font-size: 52px;
       }
 
       .moon-phase.with-image .moon-phase-label {
-        max-width: 88px;
+        max-width: 104px;
       }
 
       .moon-phase-label {
         color: var(--muted);
-        font-size: 0.78rem;
+        font-size: 15px;
         line-height: 1.2;
       }
 
       .jumuaa-times {
         display: grid;
-        gap: 12px;
+        gap: 14px;
       }
 
       .jumuaa-slot {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        gap: 16px;
-        padding-bottom: 10px;
+        gap: 18px;
+        padding-bottom: 12px;
         border-bottom: 1px solid rgba(240, 225, 191, 0.12);
       }
 
@@ -371,25 +401,25 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-size: 0.78rem;
+        font-size: 15px;
       }
 
       .jumuaa-time {
-        font-size: 1.5rem;
+        font-size: 34px;
         color: var(--accent-soft);
       }
 
       .prayer-card {
-        padding: 28px;
+        padding: 34px;
         margin-bottom: 24px;
       }
 
       .section-heading {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        gap: 20px;
         align-items: end;
-        margin-bottom: 22px;
+        margin-bottom: 26px;
       }
 
       .upcoming {
@@ -397,7 +427,8 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .status-message {
-        margin-bottom: 18px;
+        margin-bottom: 20px;
+        font-size: 18px;
       }
 
       .status-message.error {
@@ -407,11 +438,11 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       .prayer-grid {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 14px;
+        gap: 18px;
       }
 
       .prayer-tile {
-        padding: 18px;
+        padding: 24px 22px;
         border-radius: 22px;
         border: 1px solid rgba(240, 225, 191, 0.1);
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
@@ -423,11 +454,11 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .prayer-name {
-        font-size: 1.1rem;
+        font-size: 24px;
       }
 
       .prayer-heading {
-        margin-bottom: 18px;
+        margin-bottom: 22px;
       }
 
       .prayer-title-with-icon {
@@ -439,14 +470,14 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .prayer-title-copy {
         display: grid;
-        gap: 8px;
+        gap: 10px;
         min-width: 0;
       }
 
       .prayer-title-icon {
         display: inline-flex;
-        width: 22px;
-        height: 22px;
+        width: 28px;
+        height: 28px;
         color: var(--accent);
         flex: 0 0 auto;
         margin-left: auto;
@@ -463,28 +494,28 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
 
       .prayer-meta {
         display: grid;
-        gap: 14px;
+        gap: 16px;
       }
 
       .sunrise-display {
         display: grid;
         align-items: end;
-        min-height: 74px;
+        min-height: 96px;
       }
 
       .prayer-meta-label {
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-size: 0.72rem;
+        font-size: 13px;
       }
 
       .prayer-row {
         display: grid;
         grid-template-columns: auto 1fr;
         align-items: baseline;
-        gap: 14px;
-        padding-bottom: 10px;
+        gap: 16px;
+        padding-bottom: 12px;
         border-bottom: 1px solid rgba(240, 225, 191, 0.1);
       }
 
@@ -494,66 +525,20 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
       }
 
       .prayer-time {
-        font-size: 1.55rem;
+        font-size: 30px;
         justify-self: end;
         text-align: right;
-      }
-
-      @media (max-width: 900px) {
-        .hero,
-        .prayer-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .nameplate {
-          justify-items: start;
-        }
-
-        .clock-primary {
-          align-items: start;
-        }
-
-        .nameplate-line-arabic {
-          text-align: left;
-        }
-
-        .section-heading {
-          align-items: start;
-          flex-direction: column;
-        }
-
-        .upcoming {
-          text-align: left;
-        }
-
-        .prayer-row {
-          grid-template-columns: 1fr;
-          gap: 6px;
-        }
-
-        .prayer-time {
-          justify-self: start;
-          text-align: left;
-        }
-      }
-
-      @media (max-width: 640px) {
-        .page {
-          padding: 14px 10px;
-        }
-
-        .clock-card,
-        .jumuaa-card,
-        .prayer-card {
-          padding: 22px;
-          border-radius: 22px;
-        }
       }
     `,
   ],
 })
 export class AppComponent {
+  private static readonly DESIGN_WIDTH = 1920;
+  private static readonly DESIGN_HEIGHT = 1080;
+
   readonly now = signal(new Date());
+  readonly viewportWidth = signal(window.innerWidth);
+  readonly viewportHeight = signal(window.innerHeight);
   readonly prayerTimesState = signal<PrayerTime[]>(this.getFallbackPrayerTimes());
   readonly moonPhase = signal<MoonPhase>(this.getMoonPhaseFallback(this.createMontrealIsoDate(this.getDatePartsInZone(new Date()))));
   readonly loadingPrayerTimes = signal(true);
@@ -616,20 +601,34 @@ export class AppComponent {
     const firstPrayer = prayers[0];
     return `Tomorrow starts with ${firstPrayer.name} at ${firstPrayer.adhanTime}`;
   });
+  readonly stageScale = computed(() =>
+    Math.min(
+      this.viewportWidth() / AppComponent.DESIGN_WIDTH,
+      this.viewportHeight() / AppComponent.DESIGN_HEIGHT,
+    ),
+  );
+  readonly scaledStageWidth = computed(() => AppComponent.DESIGN_WIDTH * this.stageScale());
+  readonly scaledStageHeight = computed(() => AppComponent.DESIGN_HEIGHT * this.stageScale());
 
   private readonly timer = window.setInterval(() => {
     this.now.set(new Date());
     void this.refreshPrayerTimesIfNeeded();
     void this.refreshMoonPhaseIfNeeded();
   }, 1000);
+  private readonly handleResize = () => {
+    this.viewportWidth.set(window.innerWidth);
+    this.viewportHeight.set(window.innerHeight);
+  };
 
   constructor() {
     void this.refreshPrayerTimesIfNeeded();
     void this.refreshMoonPhaseIfNeeded();
+    window.addEventListener('resize', this.handleResize);
   }
 
   ngOnDestroy(): void {
     window.clearInterval(this.timer);
+    window.removeEventListener('resize', this.handleResize);
   }
 
   jumuaaOrderLabel(index: number): string {
