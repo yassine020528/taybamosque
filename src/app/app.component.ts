@@ -21,6 +21,7 @@ type DateParts = {
   hour: number;
   minute: number;
   second: number;
+  weekday: string;
 };
 
 type MoonPhase = {
@@ -40,6 +41,8 @@ const MONTREAL_COORDINATES = {
   latitude: 45.5019,
   longitude: -73.5674,
 };
+const CALENDAR_METHOD = 'MATHEMATICAL';
+const ADJUSTMENT = '-1';
 const ASTRONOMY_API_APP_ID = import.meta.env['VITE_ASTRONOMY_APP_ID'] ?? '';
 const ASTRONOMY_API_APP_SECRET = import.meta.env['VITE_ASTRONOMY_APP_SECRET'] ?? '';
 const ASTRONOMY_API_AUTH = import.meta.env['VITE_ASTRONOMY_API_AUTH'] ?? '';
@@ -619,6 +622,7 @@ export class AppComponent {
   readonly prayerTimesError = signal('');
   readonly loadedPrayerDate = signal('');
   readonly loadedMoonPhaseDate = signal('');
+  readonly hijriDateFromApi = signal<string>('--');
   readonly jumuaaPrayers = signal([...JUMUAAH_PRAYERS]);
   readonly duaas = signal([...DUAAS]);
   readonly scrollingDuaas = computed(() => [...this.duaas(), ...this.duaas()]);
@@ -656,15 +660,7 @@ export class AppComponent {
     }),
   );
   readonly hijriLongDate = computed(() => {
-    const parts = this.montrealNow();
-    const current = this.createDateInTimeZone(parts.year, parts.month, parts.day);
-    return current.toLocaleDateString('en-TN-u-ca-islamic', {
-      timeZone: TIME_ZONE,
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    return this.hijriDateFromApi();
   });
   readonly prayerTimes = computed(() => this.prayerTimesState());
   readonly nextPrayerName = computed(() => {
@@ -774,6 +770,11 @@ export class AppComponent {
 
       this.prayerTimesState.set(this.mapPrayerTimes(timings));
       this.tomorrowFajrState.set(this.mapPrayerTime('Fajr', tomorrowTimings.Fajr ?? '--:--'));
+
+      const hijriDate = await this.fetchHijriDate(requestDate);
+      const gregorianDate = this.getDatePartsInZone(this.now());
+      const formattedHijri = `${gregorianDate.weekday}, ${hijriDate.day} ${hijriDate.month.en}, ${hijriDate.year}`;
+      this.hijriDateFromApi.set(formattedHijri);
     } catch {
       this.prayerTimesError.set('Unable to load live prayer times. Showing placeholders.');
       this.prayerTimesState.set(this.getFallbackPrayerTimes());
@@ -846,6 +847,8 @@ export class AppComponent {
       method: String(PRAYER_METHOD),
       school: String(PRAYER_SCHOOL),
       timezonestring: TIME_ZONE,
+      calendarMethod: CALENDAR_METHOD,
+      adjustment: ADJUSTMENT,
     });
 
     return `https://api.aladhan.com/v1/timings/${date}?${params.toString()}`;
@@ -979,6 +982,22 @@ export class AppComponent {
 
     return timings;
   }
+
+  private async fetchHijriDate(date: string): Promise<{ day: string; month: { en: string }; year: string }> {
+    const response = await fetch(this.buildPrayerTimesUrl(date)); 
+    if (!response.ok) {
+      throw new Error(`Prayer API returned ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { data?: { date?: { hijri?: { day: string; month: { en: string }; year: string } } } };
+    const hijriDate = payload.data?.date?.hijri;
+    if (!hijriDate) {
+      throw new Error('Prayer API response missing hijri date');
+    }
+
+    return hijriDate;
+  }
+
 
   private mapPrayerTime(prayerName: PrayerName, rawTime: string): PrayerTime {
     const prayer = DISPLAYED_PRAYERS.find((item) => item.name === prayerName);
@@ -1132,6 +1151,7 @@ export class AppComponent {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+      weekday: 'long',
     });
     const parts = formatter.formatToParts(date);
     const map = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
@@ -1143,6 +1163,7 @@ export class AppComponent {
       hour: Number(map.hour),
       minute: Number(map.minute),
       second: Number(map.second),
+      weekday: String(map.weekday),
     };
   }
 
