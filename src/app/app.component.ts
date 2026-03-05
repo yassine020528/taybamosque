@@ -51,11 +51,11 @@ const DISPLAYED_PRAYERS: ReadonlyArray<{ name: PrayerName; arabic: string }> = [
   { name: 'Maghrib', arabic: 'المغرب' },
   { name: 'Isha', arabic: 'العشاء' },
 ];
-const JUMUAAH_PRAYERS = ['11:30 a.m.', '12:30 p.m.', '1:30 p.m.'] as const;
+const JUMUAAH_PRAYERS = ['11:30', '12:30', '13:30'] as const;
 const IQAMA_CONSTANTS: Record<PrayerName, string | null> = {
   Fajr: null,
   Sunrise: null,
-  Dhuhr: '1:30 p.m.',
+  Dhuhr: '13:30',
   Asr: null,
   Maghrib: null, 
   Isha: null,
@@ -130,7 +130,7 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
             <div class="jumuaa-card">
               <p class="clock-label">Jumuah Prayers</p>
               <div class="jumuaa-times">
-                <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
+                <div class="jumuaa-slot" *ngFor="let prayer of formattedJumuaahPrayers(); let index = index">
                   <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
                   <p class="jumuaa-time">{{ prayer }}</p>
                 </div>
@@ -623,6 +623,19 @@ export class AppComponent {
   readonly duaas = signal([...DUAAS]);
   readonly scrollingDuaas = computed(() => [...this.duaas(), ...this.duaas()]);
 
+  formatHours(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const date = new Date(2000, 0, 1, hours, minutes);
+    return date.toLocaleTimeString('en-CA', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  readonly formattedJumuaahPrayers = computed(() => this.jumuaaPrayers().map(this.formatHours));
+
+
   readonly montrealNow = computed(() => this.getDatePartsInZone(this.now()));
   readonly currentTime = computed(() =>
     this.now().toLocaleTimeString('en-CA', {
@@ -877,8 +890,8 @@ export class AppComponent {
   }
 
   private getIqamaTime(rawTime: string, prayerName: PrayerName): string {
-    let iqamaTime = IQAMA_CONSTANTS[prayerName];
-    if (!iqamaTime) {
+    let iqamaTime = this.formatHours(IQAMA_CONSTANTS[prayerName] ?? '');
+    if (iqamaTime !== '') {
       const offset = IQAMA_OFFSETS_MINUTES[prayerName];
       const adhanMinutes = this.parsePrayerMinutes(rawTime);
 
