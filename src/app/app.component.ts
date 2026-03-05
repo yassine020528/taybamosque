@@ -51,11 +51,11 @@ const DISPLAYED_PRAYERS: ReadonlyArray<{ name: PrayerName; arabic: string }> = [
   { name: 'Maghrib', arabic: 'المغرب' },
   { name: 'Isha', arabic: 'العشاء' },
 ];
-const JUMUAAH_PRAYERS = ['11:30 AM', '12:30 PM', '1:30 PM'] as const;
+const JUMUAAH_PRAYERS = ['11:30 a.m.', '12:30 p.m.', '1:30 p.m.'] as const;
 const IQAMA_CONSTANTS: Record<PrayerName, string | null> = {
   Fajr: null,
   Sunrise: null,
-  Dhuhr: '1:30 PM',
+  Dhuhr: '1:30 p.m.',
   Asr: null,
   Maghrib: null, 
   Isha: null,
