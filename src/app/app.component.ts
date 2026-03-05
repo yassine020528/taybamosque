@@ -676,8 +676,9 @@ export class AppComponent {
     }
 
     const nextEvent = this.getNextPrayerEvent();
-    if (nextEvent.displayName && nextEvent.eventLabel && nextEvent.remainingSeconds !== null) {
-      return `Next: ${nextEvent.displayName} ${nextEvent.eventLabel} in ${this.formatEventCountdown(nextEvent.remainingSeconds)}`;
+    if (nextEvent.displayName && nextEvent.remainingSeconds !== null) {
+      const eventLabelText = nextEvent.eventLabel ? ` ${nextEvent.eventLabel}` : '';
+      return `Next: ${nextEvent.displayName}${eventLabelText} in ${this.formatEventCountdown(nextEvent.remainingSeconds)}`;
     }
 
     const firstPrayer = prayers[0];
@@ -920,7 +921,7 @@ export class AppComponent {
         {
           prayerName: prayer.name,
           displayName: prayer.name,
-          eventLabel: 'Adhan' as const,
+          eventLabel: prayer.name === 'Sunrise' ? null : ('Adhan' as const),
           eventSeconds: prayer.adhanMinutes * 60,
         },
         {
