@@ -34,6 +34,16 @@ type DuaaItem = {
   arabic: string;
 };
 
+type EventPopupKind = 'adhan' | 'iqama' | 'sunrise';
+
+type EventPopup = {
+  key: string;
+  kind: EventPopupKind;
+  message: string;
+  arabicMessage: string;
+  imageUrl: string;
+};
+
 const TIME_ZONE = 'America/Toronto';
 const PRAYER_METHOD = 2;
 const PRAYER_SCHOOL = 0;
@@ -70,6 +80,14 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
   Asr: 5,
   Maghrib: 7,
   Isha: 30,
+};
+const ARABIC_PRAYER_NAMES: Record<PrayerName, string> = {
+  Fajr: '\u0627\u0644\u0641\u062c\u0631',
+  Sunrise: '\u0627\u0644\u0634\u0631\u0648\u0642',
+  Dhuhr: '\u0627\u0644\u0638\u0647\u0631',
+  Asr: '\u0627\u0644\u0639\u0635\u0631',
+  Maghrib: '\u0627\u0644\u0645\u063a\u0631\u0628',
+  Isha: '\u0627\u0644\u0639\u0634\u0627\u0621',
 };
 const DUAAS: ReadonlyArray<DuaaItem> = [
   {
@@ -203,6 +221,19 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
           </section>
         </div>
       </div>
+      <section class="event-popup" *ngIf="activeEventPopup() as popup" aria-live="assertive">
+        <div class="event-popup__overlay">
+          <div class="event-popup__card">
+            <div class="event-popup__icon-wrap">
+              <img [src]="popup.imageUrl" alt="" class="event-popup__icon" />
+            </div>
+            <div class="event-popup__content">
+              <p class="event-popup__arabic">{{ popup.arabicMessage }}</p>
+              <p class="event-popup__title">{{ popup.message }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   `,
   styles: [
@@ -236,6 +267,98 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
         background:
           radial-gradient(circle at top, rgba(216, 178, 110, 0.18), transparent 36%),
           linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 52%, #0b1715 100%);
+      }
+
+      .event-popup {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+      }
+
+      .event-popup__overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 48px;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(216, 178, 110, 0.22), transparent 36%),
+          radial-gradient(circle at 80% 75%, rgba(255, 255, 255, 0.08), transparent 32%),
+          linear-gradient(165deg, #0f2f25 0%, #19563e 52%, #0c2a21 100%);
+      }
+
+      .event-popup__card {
+        width: min(1040px, 100%);
+        min-height: 420px;
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        align-items: center;
+        gap: 34px;
+        padding: 44px 56px;
+        border-radius: 34px;
+        border: 1px solid rgba(240, 225, 191, 0.28);
+        background: linear-gradient(180deg, rgba(4, 21, 16, 0.6), rgba(4, 21, 16, 0.42));
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.38);
+        backdrop-filter: blur(8px);
+      }
+
+      .event-popup__icon-wrap {
+        display: grid;
+        place-items: center;
+      }
+
+      .event-popup__icon {
+        width: 180px;
+        height: 180px;
+        object-fit: contain;
+        border-radius: 50%;
+        background: rgba(5, 18, 14, 0.65);
+        padding: 20px;
+        border: 1px solid rgba(240, 225, 191, 0.3);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+      }
+
+      .event-popup__content {
+        display: grid;
+        gap: 18px;
+        text-align: left;
+      }
+
+      .event-popup__arabic {
+        font-family: 'Amiri', serif;
+        font-size: 72px;
+        color: #f0e1bf;
+        line-height: 1.15;
+      }
+
+      .event-popup__title {
+        font-size: 54px;
+        color: #ffffff;
+        text-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      }
+
+      @media (max-width: 1100px) {
+        .event-popup__card {
+          grid-template-columns: 1fr;
+          justify-items: center;
+          text-align: center;
+          gap: 20px;
+          min-height: 0;
+        }
+
+        .event-popup__content {
+          text-align: center;
+        }
+
+        .event-popup__arabic {
+          font-size: 54px;
+        }
+
+        .event-popup__title {
+          font-size: 42px;
+        }
       }
 
       .stage {
@@ -626,6 +749,7 @@ export class AppComponent {
   readonly jumuaaPrayers = signal([...JUMUAAH_PRAYERS]);
   readonly duaas = signal([...DUAAS]);
   readonly scrollingDuaas = computed(() => [...this.duaas(), ...this.duaas()]);
+  readonly activeEventPopup = signal<EventPopup | null>(null);
 
   formatHours(time: string): string {
     const [hours, minutes] = time.split(':').map(Number);
@@ -695,6 +819,7 @@ export class AppComponent {
 
   private readonly timer = window.setInterval(() => {
     this.now.set(new Date());
+    this.checkAndShowEventPopup();
     void this.refreshPrayerTimesIfNeeded();
     void this.refreshMoonPhaseIfNeeded();
   }, 1000);
@@ -710,6 +835,10 @@ export class AppComponent {
     event.preventDefault();
     void this.toggleFullscreen();
   };
+  private popupTimerId: number | null = null;
+  private lastPopupDateKey = '';
+  private lastKnownSecondOfDay: number | null = null;
+  private readonly shownPopupKeys = new Set<string>();
 
   constructor() {
     void this.refreshPrayerTimesIfNeeded();
@@ -720,6 +849,9 @@ export class AppComponent {
 
   ngOnDestroy(): void {
     window.clearInterval(this.timer);
+    if (this.popupTimerId !== null) {
+      window.clearTimeout(this.popupTimerId);
+    }
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('keydown', this.handleKeydown);
   }
@@ -783,6 +915,101 @@ export class AppComponent {
     } finally {
       this.loadingPrayerTimes.set(false);
     }
+  }
+
+  private checkAndShowEventPopup(): void {
+    if (this.loadingPrayerTimes()) {
+      return;
+    }
+
+    const nowParts = this.montrealNow();
+    const dateKey = this.createMontrealIsoDate(nowParts);
+    if (this.lastPopupDateKey !== dateKey) {
+      this.lastPopupDateKey = dateKey;
+      this.shownPopupKeys.clear();
+    }
+
+    const currentSecondOfDay = nowParts.hour * 3600 + nowParts.minute * 60 + nowParts.second;
+    if (this.lastKnownSecondOfDay === null) {
+      this.lastKnownSecondOfDay = currentSecondOfDay;
+      return;
+    }
+
+    const popupEvent = this.getTriggeredPopupEvent(dateKey, this.lastKnownSecondOfDay, currentSecondOfDay);
+    this.lastKnownSecondOfDay = currentSecondOfDay;
+
+    if (!popupEvent || this.shownPopupKeys.has(popupEvent.key)) {
+      return;
+    }
+
+    this.shownPopupKeys.add(popupEvent.key);
+    this.activeEventPopup.set(popupEvent);
+    if (this.popupTimerId !== null) {
+      window.clearTimeout(this.popupTimerId);
+    }
+    this.popupTimerId = window.setTimeout(() => {
+      this.activeEventPopup.set(null);
+    }, 30000);
+  }
+
+  private getTriggeredPopupEvent(dateKey: string, previousSecond: number, currentSecond: number): EventPopup | null {
+    const events = this.getPopupEventsForToday(dateKey);
+    const crossedEvents = events.filter((event) => this.crossedSecond(previousSecond, currentSecond, event.secondOfDay));
+    return crossedEvents[0] ?? null;
+  }
+
+  private getPopupEventsForToday(dateKey: string): Array<EventPopup & { secondOfDay: number }> {
+    return this.prayerTimes()
+      .flatMap((prayer) => {
+        const events: Array<EventPopup & { secondOfDay: number }> = [];
+
+        if (prayer.adhanMinutes < Number.MAX_SAFE_INTEGER) {
+          const isSunrise = prayer.name === 'Sunrise';
+          events.push({
+            key: `${dateKey}-${prayer.name}-${isSunrise ? 'sunrise' : 'adhan'}`,
+            kind: isSunrise ? 'sunrise' : 'adhan',
+            message: isSunrise ? "It's time for sunrise" : `It's time for ${prayer.name} adhan`,
+            arabicMessage: this.getArabicPopupMessage(prayer.name, isSunrise ? 'sunrise' : 'adhan'),
+            imageUrl: isSunrise ? '/assets/sunrise.png' : '/assets/adhan.png',
+            secondOfDay: prayer.adhanMinutes * 60,
+          });
+        }
+
+        if (prayer.name !== 'Sunrise' && prayer.iqamaMinutes < Number.MAX_SAFE_INTEGER) {
+          events.push({
+            key: `${dateKey}-${prayer.name}-iqama`,
+            kind: 'iqama',
+            message: `It's time for ${prayer.name} iqama`,
+            arabicMessage: this.getArabicPopupMessage(prayer.name, 'iqama'),
+            imageUrl: '/assets/iqama.png',
+            secondOfDay: prayer.iqamaMinutes * 60,
+          });
+        }
+
+        return events;
+      })
+      .sort((left, right) => left.secondOfDay - right.secondOfDay);
+  }
+
+  private getArabicPopupMessage(prayerName: PrayerName, kind: EventPopupKind): string {
+    if (kind === 'sunrise') {
+      return '\u062d\u0627\u0646\u064e \u0648\u0642\u062a\u064f \u0627\u0644\u0634\u0631\u0648\u0642';
+    }
+
+    const prayerArabic = ARABIC_PRAYER_NAMES[prayerName];
+    if (kind === 'adhan') {
+      return `\u062d\u0627\u0646\u064e\u0020\u0648\u0642\u062a\u064f\u0020\u0623\u0630\u0627\u0646\u0020\u0635\u0644\u0627\u0629\u0020 ${prayerArabic}`;
+    }
+
+    return `\u062d\u0627\u0646\u064e\u0020\u0648\u0642\u062a\u064f\u0020\u0625\u0642\u0627\u0645\u0629\u0020\u0635\u0644\u0627\u0629 ${prayerArabic}`;
+  }
+
+  private crossedSecond(previousSecond: number, currentSecond: number, eventSecond: number): boolean {
+    if (currentSecond >= previousSecond) {
+      return eventSecond > previousSecond && eventSecond <= currentSecond;
+    }
+
+    return eventSecond > previousSecond || eventSecond <= currentSecond;
   }
 
   private async refreshMoonPhaseIfNeeded(): Promise<void> {
