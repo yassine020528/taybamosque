@@ -968,7 +968,7 @@ export class AppComponent {
           events.push({
             key: `${dateKey}-${prayer.name}-${isSunrise ? 'sunrise' : 'adhan'}`,
             kind: isSunrise ? 'sunrise' : 'adhan',
-            message: isSunrise ? "It's time for sunrise" : `It's time for ${prayer.name} adhan`,
+            message: isSunrise ? "It's time for sunrise" : `It's time for ${prayer.name} Adhan`,
             arabicMessage: this.getArabicPopupMessage(prayer.name, isSunrise ? 'sunrise' : 'adhan'),
             imageUrl: isSunrise ? '/assets/sunrise.png' : '/assets/adhan.png',
             secondOfDay: prayer.adhanMinutes * 60,
@@ -979,7 +979,7 @@ export class AppComponent {
           events.push({
             key: `${dateKey}-${prayer.name}-iqama`,
             kind: 'iqama',
-            message: `It's time for ${prayer.name} iqama`,
+            message: `It's time for ${prayer.name} Iqama`,
             arabicMessage: this.getArabicPopupMessage(prayer.name, 'iqama'),
             imageUrl: '/assets/iqama.png',
             secondOfDay: prayer.iqamaMinutes * 60,
