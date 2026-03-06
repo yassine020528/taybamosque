@@ -290,7 +290,7 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
       }
 
       .event-popup__card {
-        width: min(1040px, 100%);
+        width: min(1200px, 100%);
         min-height: 420px;
         display: grid;
         grid-template-columns: 220px 1fr;
