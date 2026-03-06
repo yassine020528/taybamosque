@@ -178,7 +178,7 @@ const DUAAS: ReadonlyArray<DuaaItem> = [
               <article
                 *ngFor="let prayer of prayerTimes()"
                 class="prayer-tile"
-                [class.active]="prayer.name === nextPrayerName()"
+                [class.active]="prayer.name === currentPrayerName()"
               >
                 <div class="prayer-heading">
                   <div class="prayer-title-with-icon">
@@ -787,8 +787,8 @@ export class AppComponent {
     return this.hijriDateFromApi();
   });
   readonly prayerTimes = computed(() => this.prayerTimesState());
-  readonly nextPrayerName = computed(() => {
-    return this.getNextPrayerEvent().prayerName ?? this.prayerTimes()[0]?.name ?? '';
+  readonly currentPrayerName = computed(() => {
+    return this.getCurrentPrayerEvent().prayerName ?? this.prayerTimes().at(-1)?.name ?? this.prayerTimes()[0]?.name ?? '';
   });
   readonly upcomingPrayerLabel = computed(() => {
     const prayers = this.prayerTimes();
@@ -1193,6 +1193,43 @@ export class AppComponent {
       displayName: null,
       eventLabel: null,
       remainingSeconds: null,
+    };
+  }
+
+  private getCurrentPrayerEvent(): {
+    prayerName: PrayerName | null;
+    displayName: string | null;
+  } {
+    const current = this.montrealNow();
+    const currentSeconds = current.hour * 3600 + current.minute * 60 + current.second;
+    const events = this.prayerTimes()
+      .map((prayer) => ({
+        prayerName: prayer.name,
+        displayName: prayer.name,
+        eventSeconds: prayer.adhanMinutes * 60,
+      }))
+      .filter((event) => Number.isFinite(event.eventSeconds) && event.eventSeconds < Number.MAX_SAFE_INTEGER)
+      .sort((left, right) => left.eventSeconds - right.eventSeconds);
+
+    const currentEvent = events.filter((event) => event.eventSeconds <= currentSeconds).at(-1);
+    if (currentEvent) {
+      return {
+        prayerName: currentEvent.prayerName,
+        displayName: currentEvent.displayName,
+      };
+    }
+
+    const lastPrayer = events.at(-1);
+    if (lastPrayer) {
+      return {
+        prayerName: lastPrayer.prayerName,
+        displayName: lastPrayer.displayName,
+      };
+    }
+
+    return {
+      prayerName: null,
+      displayName: null,
     };
   }
 
