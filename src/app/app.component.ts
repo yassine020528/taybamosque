@@ -77,9 +77,9 @@ const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
   Fajr: 25,
   Sunrise: null,
   Dhuhr: 30,
-  Asr: 5,
+  Asr: 15,
   Maghrib: 7,
-  Isha: 30,
+  Isha: 15,
 };
 const ARABIC_PRAYER_NAMES: Record<PrayerName, string> = {
   Fajr: '\u0627\u0644\u0641\u062c\u0631',
