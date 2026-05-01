@@ -1,0 +1,13 @@
+<section class="event-popup" aria-live="assertive">
+  <div class="event-popup__overlay">
+    <div class="event-popup__card">
+      <div class="event-popup__icon-wrap">
+        <img [src]="popup().imageUrl" alt="" class="event-popup__icon" />
+      </div>
+      <div class="event-popup__content">
+        <p class="event-popup__arabic">{{ popup().arabicMessage }}</p>
+        <p class="event-popup__title">{{ popup().message }}</p>
+      </div>
+    </div>
+  </div>
+</section>

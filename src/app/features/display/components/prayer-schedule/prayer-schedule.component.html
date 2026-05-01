@@ -1,0 +1,45 @@
+<section class="prayer-card">
+  <div class="section-heading">
+    <div>
+      <h2>Today's Schedule</h2>
+    </div>
+    <h2 class="h2 upcoming">{{ upcomingPrayerLabel() }}</h2>
+  </div>
+
+  <p *ngIf="loading()" class="status-message">Loading prayer times...</p>
+  <p *ngIf="error()" class="status-message error">{{ error() }}</p>
+
+  <div class="prayer-grid">
+    <article
+      *ngFor="let prayer of prayers()"
+      class="prayer-tile"
+      [class.active]="prayer.name === currentPrayerName()"
+    >
+      <div class="prayer-heading">
+        <div class="prayer-title-with-icon">
+          <div class="prayer-title-copy">
+            <p class="prayer-name">{{ prayerDisplayName(prayer) }}</p>
+            <p class="prayer-arabic">{{ prayerDisplayArabic(prayer) }}</p>
+          </div>
+          <span class="prayer-title-icon" *ngIf="prayer.isSunrise || prayer.isMaghrib" aria-hidden="true">
+            <img *ngIf="prayer.isSunrise" src="/assets/sunrise.png" alt="" class="prayer-icon" />
+            <img *ngIf="prayer.isMaghrib" src="/assets/sunset.png" alt="" class="prayer-icon" />
+          </span>
+        </div>
+      </div>
+      <div class="sunrise-display" *ngIf="prayer.isSunrise; else prayerSchedule">
+        <p class="prayer-time">{{ prayer.adhanTime }}</p>
+      </div>
+      <ng-template #prayerSchedule>
+        <div class="prayer-meta">
+          <div class="prayer-row">
+            <p class="prayer-time">{{ prayer.adhanTime }}</p>
+          </div>
+          <div class="prayer-row">
+            <p class="prayer-time">{{ prayer.iqamaTime }}</p>
+          </div>
+        </div>
+      </ng-template>
+    </article>
+  </div>
+</section>

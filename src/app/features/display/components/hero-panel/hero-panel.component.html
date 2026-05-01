@@ -1,0 +1,37 @@
+<section class="hero">
+  <div class="nameplate" aria-label="Masjid Tayba">
+    <img src="assets/tayba.png" alt="Masjid Tayba logo" width="100%" height="100%" />
+  </div>
+
+  <div class="clock-card">
+    <div class="clock-info">
+      <p class="clock-label">Current Montreal Time</p>
+      <div class="clock-primary">
+        <p class="clock-time">{{ currentTime() }}</p>
+      </div>
+      <p class="clock-date">{{ gregorianDate() }}</p>
+      <p class="clock-hijri">{{ hijriDate() }}</p>
+    </div>
+    <div class="moon-phase" [class.with-image]="!!moonPhase().imageUrl">
+      <img *ngIf="moonPhase().imageUrl; else moonIcon" [src]="moonPhase().imageUrl" [alt]="moonPhase().label" />
+      <ng-template #moonIcon>
+        <span class="moon-phase-icon" aria-hidden="true">{{ moonPhase().icon }}</span>
+      </ng-template>
+      <p class="moon-phase-label">Moon Phase</p>
+    </div>
+  </div>
+
+  <div class="jumuaa-card">
+    <p class="clock-label">Jumuah Prayers</p>
+    <div class="jumuaa-times">
+      <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
+        <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
+        <p class="jumuaa-time">{{ prayer }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="qr-code" aria-label="QR Code">
+    <img src="assets/qr.png" alt="QR Code" width="100%" height="100%" />
+  </div>
+</section>

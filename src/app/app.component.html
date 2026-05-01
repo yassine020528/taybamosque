@@ -1,0 +1,23 @@
+<main class="viewport-shell">
+  <div class="stage" [style.width.px]="scaledStageWidth()" [style.height.px]="scaledStageHeight()">
+    <div class="stage__canvas" [style.transform]="'scale(' + stageScale() + ')'">
+      <app-hero-panel
+        [currentTime]="currentTime()"
+        [gregorianDate]="gregorianLongDate()"
+        [hijriDate]="hijriLongDate()"
+        [moonPhase]="moonPhase()"
+        [jumuaaPrayers]="formattedJumuaahPrayers()"
+      />
+      <app-prayer-schedule
+        [prayers]="prayerTimes()"
+        [currentPrayerName]="currentPrayerName()"
+        [upcomingPrayerLabel]="upcomingPrayerLabel()"
+        [loading]="loadingPrayerTimes()"
+        [error]="prayerTimesError()"
+        [showTomorrowFajrLabel]="showTomorrowFajrLabel()"
+      />
+      <app-duaa-marquee [duaas]="duaas()" />
+    </div>
+  </div>
+  <app-event-popup *ngIf="activeEventPopup() as popup" [popup]="popup" />
+</main>

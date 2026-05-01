@@ -1,0 +1,11 @@
+<section class="duaa-card">
+  <div class="duaa-marquee" aria-label="Scrolling duaa list">
+    <div class="duaa-track">
+      <div class="duaa-group">
+        <p class="duaa-line" *ngFor="let duaa of duaas()">
+          <span class="duaa-text">{{ duaa.arabic }}</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
