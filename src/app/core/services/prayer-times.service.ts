@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { MONTREAL_COORDINATES, PRAYER_API_OPTIONS, TIME_ZONE } from '../config/masjid.config';
 import { DateParts } from '../models/date-time.model';
+import { MasjidSettings } from '../models/masjid-settings.model';
 import { HijriDate, PrayerScheduleSnapshot } from '../models/prayer.model';
 import { createDateInTimeZone, getDatePartsInZone, toAlAdhanRequestDate } from '../utils/date-time.util';
 import { PrayerTimeMapper } from './prayer-time.mapper';
@@ -14,7 +15,7 @@ type AlAdhanDayResponse = {
 export class PrayerTimesService {
   private readonly mapper = inject(PrayerTimeMapper);
 
-  async getSchedule(parts: DateParts): Promise<PrayerScheduleSnapshot> {
+  async getSchedule(parts: DateParts, settings: MasjidSettings): Promise<PrayerScheduleSnapshot> {
     const requestDate = toAlAdhanRequestDate(parts);
     const tomorrow = getDatePartsInZone(createDateInTimeZone(parts.year, parts.month, parts.day + 1, 12));
     const tomorrowRequestDate = toAlAdhanRequestDate(tomorrow);
@@ -24,8 +25,8 @@ export class PrayerTimesService {
     ]);
 
     return {
-      prayers: this.mapper.mapPrayerTimes(today.timings),
-      tomorrowFajr: this.mapper.mapPrayerTime('Fajr', tomorrowDay.timings['Fajr'] ?? '--:--'),
+      prayers: this.mapper.mapPrayerTimes(today.timings, settings),
+      tomorrowFajr: this.mapper.mapPrayerTime('Fajr', tomorrowDay.timings['Fajr'] ?? '--:--', settings),
       hijriDate: today.hijriDate,
     };
   }

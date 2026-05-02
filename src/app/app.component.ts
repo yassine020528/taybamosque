@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, ViewEncapsulation, computed, inject, signal } from '@angular/core';
-import { DISPLAY_DIMENSIONS, DUAAS, JUMUAAH_PRAYERS, TIME_ZONE } from './core/config/masjid.config';
+import { DEFAULT_MASJID_SETTINGS, DISPLAY_DIMENSIONS, DISPLAYED_PRAYERS, DUAAS, TIME_ZONE } from './core/config/masjid.config';
 import { EventPopup } from './core/models/event-popup.model';
+import { IqamaMode, MasjidSettings } from './core/models/masjid-settings.model';
 import { MoonPhase } from './core/models/moon-phase.model';
 import { PrayerTime } from './core/models/prayer.model';
 import { EventPopupService } from './core/services/event-popup.service';
+import { MasjidSettingsService } from './core/services/masjid-settings.service';
 import { MoonPhaseService } from './core/services/moon-phase.service';
 import { PrayerTimeMapper } from './core/services/prayer-time.mapper';
 import { PrayerTimelineService } from './core/services/prayer-timeline.service';
@@ -28,6 +30,7 @@ export class AppComponent implements OnDestroy {
   private readonly prayerTimesService = inject(PrayerTimesService);
   private readonly prayerTimeMapper = inject(PrayerTimeMapper);
   private readonly moonPhaseService = inject(MoonPhaseService);
+  private readonly masjidSettingsService = inject(MasjidSettingsService);
   private readonly prayerTimeline = inject(PrayerTimelineService);
   private readonly eventPopups = inject(EventPopupService);
 
@@ -36,6 +39,7 @@ export class AppComponent implements OnDestroy {
   private readonly viewportHeight = signal(window.innerHeight);
   private readonly loadedPrayerDate = signal('');
   private readonly loadedMoonPhaseDate = signal('');
+  private readonly fullscreenActive = signal(Boolean(document.fullscreenElement));
 
   readonly prayerTimesState = signal<PrayerTime[]>(this.prayerTimeMapper.getFallbackPrayerTimes());
   readonly tomorrowFajrState = signal<PrayerTime | null>(null);
@@ -43,9 +47,16 @@ export class AppComponent implements OnDestroy {
   readonly loadingPrayerTimes = signal(true);
   readonly prayerTimesError = signal('');
   readonly hijriDateFromApi = signal<string>('--');
-  readonly jumuaaPrayers = signal([...JUMUAAH_PRAYERS]);
+  readonly masjidSettings = signal<MasjidSettings>(this.masjidSettingsService.getDefaultSettings());
+  readonly jumuaaPrayers = computed(() => this.masjidSettings().jumuaaPrayers);
   readonly duaas = signal([...DUAAS]);
   readonly activeEventPopup = signal<EventPopup | null>(null);
+  readonly settingsPanelOpen = signal(false);
+  readonly settingsSaving = signal(false);
+  readonly settingsStatus = signal('');
+  readonly settingsError = signal('');
+  readonly editablePrayers = DISPLAYED_PRAYERS.filter((prayer) => prayer.name !== 'Sunrise');
+  readonly showSettingsButton = computed(() => !this.fullscreenActive() && !this.settingsPanelOpen());
 
   readonly formattedJumuaahPrayers = computed(() => this.jumuaaPrayers().map(formatHours));
   readonly prayerTimes = computed(() => this.prayerTimesState());
@@ -86,7 +97,16 @@ export class AppComponent implements OnDestroy {
     this.viewportWidth.set(window.innerWidth);
     this.viewportHeight.set(window.innerHeight);
   };
+  private readonly handleFullscreenChange = () => {
+    this.fullscreenActive.set(Boolean(document.fullscreenElement));
+  };
   private readonly handleKeydown = (event: KeyboardEvent) => {
+    if (event.key.toLowerCase() === 's' && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      event.preventDefault();
+      this.openSettingsPanel();
+      return;
+    }
+
     if (event.key.toLowerCase() !== 'f' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
       return;
     }
@@ -94,11 +114,15 @@ export class AppComponent implements OnDestroy {
     event.preventDefault();
     void this.toggleFullscreen();
   };
+  settingsDraft: MasjidSettings = this.masjidSettingsService.cloneSettings(DEFAULT_MASJID_SETTINGS);
+  adminToken = window.localStorage.getItem('masjid-settings-token') ?? '';
 
   constructor() {
+    void this.loadMasjidSettings();
     void this.refreshPrayerTimesIfNeeded();
     void this.refreshMoonPhaseIfNeeded();
     window.addEventListener('resize', this.handleResize);
+    document.addEventListener('fullscreenchange', this.handleFullscreenChange);
     window.addEventListener('keydown', this.handleKeydown);
   }
 
@@ -106,6 +130,7 @@ export class AppComponent implements OnDestroy {
     window.clearInterval(this.timer);
     this.clearPopupTimer();
     window.removeEventListener('resize', this.handleResize);
+    document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     window.removeEventListener('keydown', this.handleKeydown);
   }
 
@@ -133,13 +158,13 @@ export class AppComponent implements OnDestroy {
     this.prayerTimesError.set('');
 
     try {
-      const schedule = await this.prayerTimesService.getSchedule(parts);
+      const schedule = await this.prayerTimesService.getSchedule(parts, this.masjidSettings());
       this.prayerTimesState.set(schedule.prayers);
       this.tomorrowFajrState.set(schedule.tomorrowFajr);
       this.hijriDateFromApi.set(`${parts.weekday}, ${schedule.hijriDate.day} ${schedule.hijriDate.month.en}, ${schedule.hijriDate.year}`);
     } catch {
       this.prayerTimesError.set('Unable to load live prayer times. Showing placeholders.');
-      this.prayerTimesState.set(this.prayerTimeMapper.getFallbackPrayerTimes());
+      this.prayerTimesState.set(this.prayerTimeMapper.getFallbackPrayerTimes(this.masjidSettings()));
       this.tomorrowFajrState.set(null);
     } finally {
       this.loadingPrayerTimes.set(false);
@@ -209,5 +234,105 @@ export class AppComponent implements OnDestroy {
       window.clearTimeout(this.popupTimerId);
       this.popupTimerId = null;
     }
+  }
+
+  openSettingsPanel(): void {
+    this.settingsDraft = this.masjidSettingsService.cloneSettings(this.masjidSettings());
+    this.settingsStatus.set('');
+    this.settingsError.set('');
+    this.settingsPanelOpen.set(true);
+  }
+
+  closeSettingsPanel(): void {
+    if (this.settingsSaving()) {
+      return;
+    }
+
+    this.settingsPanelOpen.set(false);
+  }
+
+  addJumuaaPrayer(): void {
+    this.settingsDraft.jumuaaPrayers = [...this.settingsDraft.jumuaaPrayers, '13:30'];
+  }
+
+  removeJumuaaPrayer(index: number): void {
+    if (this.settingsDraft.jumuaaPrayers.length <= 1) {
+      return;
+    }
+
+    this.settingsDraft.jumuaaPrayers = this.settingsDraft.jumuaaPrayers.filter((_, prayerIndex) => prayerIndex !== index);
+  }
+
+  updateJumuaaPrayer(index: number, value: string): void {
+    this.settingsDraft.jumuaaPrayers = this.settingsDraft.jumuaaPrayers.map((time, prayerIndex) =>
+      prayerIndex === index ? value : time,
+    );
+  }
+
+  setIqamaMode(prayerName: string, mode: IqamaMode): void {
+    const prayer = prayerName as keyof MasjidSettings['iqama'];
+    const setting = this.settingsDraft.iqama[prayer];
+    this.settingsDraft.iqama[prayer] = {
+      ...setting,
+      mode,
+      fixedTime: setting.fixedTime ?? '13:30',
+      offsetMinutes: setting.offsetMinutes ?? 15,
+    };
+  }
+
+  updateIqamaOffset(prayerName: string, value: string): void {
+    const prayer = prayerName as keyof MasjidSettings['iqama'];
+    this.settingsDraft.iqama[prayer] = {
+      ...this.settingsDraft.iqama[prayer],
+      offsetMinutes: Number(value),
+    };
+  }
+
+  updateIqamaFixedTime(prayerName: string, value: string): void {
+    const prayer = prayerName as keyof MasjidSettings['iqama'];
+    this.settingsDraft.iqama[prayer] = {
+      ...this.settingsDraft.iqama[prayer],
+      fixedTime: value,
+    };
+  }
+
+  updateAdminToken(value: string): void {
+    this.adminToken = value;
+  }
+
+  resetSettingsDraft(): void {
+    this.settingsDraft = this.masjidSettingsService.getDefaultSettings();
+  }
+
+  async saveSettings(): Promise<void> {
+    this.settingsSaving.set(true);
+    this.settingsStatus.set('');
+    this.settingsError.set('');
+
+    try {
+      const savedSettings = await this.masjidSettingsService.saveSettings(this.settingsDraft, this.adminToken.trim());
+      window.localStorage.setItem('masjid-settings-token', this.adminToken.trim());
+      this.applyMasjidSettings(savedSettings);
+      this.settingsStatus.set('Saved. The display is using the new schedule.');
+    } catch (error) {
+      this.settingsError.set(error instanceof Error ? error.message : 'Unable to save settings.');
+    } finally {
+      this.settingsSaving.set(false);
+    }
+  }
+
+  private async loadMasjidSettings(): Promise<void> {
+    try {
+      this.applyMasjidSettings(await this.masjidSettingsService.getSettings());
+    } catch {
+      this.applyMasjidSettings(this.masjidSettingsService.getDefaultSettings());
+      this.settingsError.set('Settings database is not configured yet. Using built-in defaults.');
+    }
+  }
+
+  private applyMasjidSettings(settings: MasjidSettings): void {
+    this.masjidSettings.set(settings);
+    this.loadedPrayerDate.set('');
+    void this.refreshPrayerTimesIfNeeded();
   }
 }

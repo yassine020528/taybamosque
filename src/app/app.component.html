@@ -1,4 +1,5 @@
 <main class="viewport-shell">
+  <button *ngIf="showSettingsButton()" type="button" class="settings-button" (click)="openSettingsPanel()">Settings</button>
   <div class="stage" [style.width.px]="scaledStageWidth()" [style.height.px]="scaledStageHeight()">
     <div class="stage__canvas" [style.transform]="'scale(' + stageScale() + ')'">
       <app-hero-panel
@@ -20,4 +21,93 @@
     </div>
   </div>
   <app-event-popup *ngIf="activeEventPopup() as popup" [popup]="popup" />
+
+  <section class="settings-modal" *ngIf="settingsPanelOpen()" aria-label="Masjid settings">
+    <div class="settings-modal__panel">
+      <div class="settings-modal__header">
+        <div>
+          <p class="settings-kicker">Persistent Settings</p>
+          <h2>Prayer Display Editor</h2>
+        </div>
+        <button type="button" class="settings-icon-button" (click)="closeSettingsPanel()" aria-label="Close settings">x</button>
+      </div>
+
+      <div class="settings-grid">
+        <section class="settings-section">
+          <div class="settings-section__heading">
+            <h3>Jumuaa Prayers</h3>
+            <button type="button" class="settings-action" (click)="addJumuaaPrayer()">Add Time</button>
+          </div>
+
+          <div class="jumuaa-editor-row" *ngFor="let prayer of settingsDraft.jumuaaPrayers; let index = index">
+            <label>
+              <span>{{ index + 1 }}</span>
+              <input
+                type="time"
+                [value]="settingsDraft.jumuaaPrayers[index]"
+                (input)="updateJumuaaPrayer(index, $any($event.target).value)"
+              />
+            </label>
+            <button type="button" class="settings-icon-button" (click)="removeJumuaaPrayer(index)" aria-label="Remove Jumuaa time">-</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>Iqama Rules</h3>
+
+          <div class="iqama-editor-row" *ngFor="let prayer of editablePrayers">
+            <p>{{ prayer.name }}</p>
+            <select
+              [value]="settingsDraft.iqama[prayer.name].mode"
+              (change)="setIqamaMode(prayer.name, $any($event.target).value)"
+            >
+              <option value="offset">Offset after adhan</option>
+              <option value="fixed">Fixed time</option>
+              <option value="none">No iqama</option>
+            </select>
+
+            <input
+              *ngIf="settingsDraft.iqama[prayer.name].mode === 'offset'"
+              type="number"
+              min="0"
+              max="180"
+              step="1"
+              [value]="settingsDraft.iqama[prayer.name].offsetMinutes ?? 0"
+              (input)="updateIqamaOffset(prayer.name, $any($event.target).value)"
+              aria-label="Offset minutes"
+            />
+
+            <input
+              *ngIf="settingsDraft.iqama[prayer.name].mode === 'fixed'"
+              type="time"
+              [value]="settingsDraft.iqama[prayer.name].fixedTime ?? ''"
+              (input)="updateIqamaFixedTime(prayer.name, $any($event.target).value)"
+              aria-label="Fixed iqama time"
+            />
+          </div>
+        </section>
+      </div>
+
+      <label class="admin-token-field">
+        <span>Admin token</span>
+        <input
+          type="password"
+          [value]="adminToken"
+          (input)="updateAdminToken($any($event.target).value)"
+          autocomplete="current-password"
+        />
+      </label>
+
+      <p *ngIf="settingsStatus()" class="settings-message">{{ settingsStatus() }}</p>
+      <p *ngIf="settingsError()" class="settings-message settings-message--error">{{ settingsError() }}</p>
+
+      <div class="settings-modal__footer">
+        <button type="button" class="settings-action settings-action--quiet" (click)="resetSettingsDraft()">Reset Defaults</button>
+        <button type="button" class="settings-action settings-action--quiet" (click)="closeSettingsPanel()">Cancel</button>
+        <button type="button" class="settings-action settings-action--primary" (click)="saveSettings()" [disabled]="settingsSaving()">
+          {{ settingsSaving() ? 'Saving...' : 'Save Settings' }}
+        </button>
+      </div>
+    </div>
+  </section>
 </main>

@@ -19,6 +19,7 @@ app-root {
 }
 
 .viewport-shell {
+  position: relative;
   display: grid;
   place-items: center;
   height: 100vh;
@@ -27,6 +28,195 @@ app-root {
   background:
     radial-gradient(circle at top, rgba(216, 178, 110, 0.18), transparent 36%),
     linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 52%, #0b1715 100%);
+}
+
+.settings-button {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 900;
+  border: 1px solid rgba(240, 225, 191, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(10, 22, 20, 0.78);
+  color: var(--accent-soft);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(4, 12, 10, 0.76);
+}
+
+.settings-modal__panel {
+  width: min(960px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid rgba(240, 225, 191, 0.22);
+  border-radius: 8px;
+  background: #132822;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.settings-modal__header,
+.settings-modal__footer,
+.settings-section__heading,
+.jumuaa-editor-row,
+.iqama-editor-row {
+  display: flex;
+  align-items: center;
+}
+
+.settings-modal__header {
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.settings-kicker {
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 14px;
+}
+
+.settings-section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(240, 225, 191, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.settings-section__heading {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.jumuaa-editor-row,
+.iqama-editor-row {
+  gap: 10px;
+}
+
+.jumuaa-editor-row label {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.iqama-editor-row {
+  display: grid;
+  grid-template-columns: 90px minmax(180px, 1fr) 120px;
+}
+
+.iqama-editor-row p {
+  font-size: 18px;
+}
+
+.settings-modal input,
+.settings-modal select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid rgba(240, 225, 191, 0.22);
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: #0b1715;
+  color: #f7f2e8;
+  font: inherit;
+  font-size: 15px;
+}
+
+.admin-token-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.settings-action,
+.settings-icon-button {
+  border: 1px solid rgba(240, 225, 191, 0.26);
+  border-radius: 8px;
+  background: rgba(240, 225, 191, 0.08);
+  color: #f7f2e8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-action {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 15px;
+}
+
+.settings-action--primary {
+  border-color: rgba(216, 178, 110, 0.65);
+  background: #d8b26e;
+  color: #122620;
+}
+
+.settings-action--quiet {
+  background: transparent;
+}
+
+.settings-action:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.settings-icon-button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  font-size: 20px;
+}
+
+.settings-message {
+  margin-top: 10px;
+  color: #b9e6c7;
+  font-size: 16px;
+}
+
+.settings-message--error {
+  color: #f2b4a5;
+}
+
+.settings-modal__footer {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 860px) {
+  .settings-grid,
+  .iqama-editor-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .event-popup {
@@ -192,6 +382,10 @@ p {
 
 h2 {
   font-size: 40px;
+}
+
+.settings-modal h2 {
+  font-size: 30px;
 }
 
 .clock-date,

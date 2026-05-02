@@ -1,4 +1,5 @@
 import { DuaaItem } from '../models/content.model';
+import { MasjidSettings } from '../models/masjid-settings.model';
 import { PrayerDefinition, PrayerName } from '../models/prayer.model';
 
 export const DISPLAY_DIMENSIONS = {
@@ -53,6 +54,18 @@ export const IQAMA_OFFSETS_MINUTES: Record<PrayerName, number | null> = {
   Asr: 15,
   Maghrib: 7,
   Isha: 15,
+};
+
+export const DEFAULT_MASJID_SETTINGS: MasjidSettings = {
+  jumuaaPrayers: [...JUMUAAH_PRAYERS],
+  iqama: {
+    Fajr: { mode: 'offset', offsetMinutes: 25, fixedTime: null },
+    Sunrise: { mode: 'none', offsetMinutes: null, fixedTime: null },
+    Dhuhr: { mode: 'fixed', offsetMinutes: 30, fixedTime: '13:30' },
+    Asr: { mode: 'offset', offsetMinutes: 15, fixedTime: null },
+    Maghrib: { mode: 'offset', offsetMinutes: 7, fixedTime: null },
+    Isha: { mode: 'offset', offsetMinutes: 15, fixedTime: null },
+  },
 };
 
 export const ARABIC_PRAYER_NAMES: Record<PrayerName, string> = {
