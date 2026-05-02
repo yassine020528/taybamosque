@@ -37,6 +37,7 @@ export const DISPLAYED_PRAYERS: readonly PrayerDefinition[] = [
 ];
 
 export const JUMUAAH_PRAYERS = ['12:30', '13:30', '14:30'] as const;
+export const MAX_JUMUAAH_PRAYERS = 6;
 
 export const IQAMA_CONSTANTS: Record<PrayerName, string | null> = {
   Fajr: null,

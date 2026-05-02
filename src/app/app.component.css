@@ -474,6 +474,7 @@ h2 {
 .jumuaa-times {
   display: grid;
   gap: 14px;
+  overflow: hidden;
 }
 
 .jumuaa-slot {
@@ -483,6 +484,22 @@ h2 {
   gap: 18px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(240, 225, 191, 0.12);
+}
+
+.jumuaa-times--animated .jumuaa-slot {
+  animation: jumuaa-page-return 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.jumuaa-times--second .jumuaa-slot {
+  animation-name: jumuaa-page-advance;
+}
+
+.jumuaa-times--animated .jumuaa-slot:nth-child(2) {
+  animation-delay: 55ms;
+}
+
+.jumuaa-times--animated .jumuaa-slot:nth-child(3) {
+  animation-delay: 110ms;
 }
 
 .jumuaa-slot:last-child {
@@ -679,6 +696,30 @@ h2 {
   }
 
   to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes jumuaa-page-advance {
+  from {
+    opacity: 0;
+    transform: translateX(34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes jumuaa-page-return {
+  from {
+    opacity: 0;
+    transform: translateX(-34px);
+  }
+
+  to {
+    opacity: 1;
     transform: translateX(0);
   }
 }

@@ -1,5 +1,6 @@
 const SETTINGS_KEY = 'masjid-display-settings';
 const SETTINGS_TABLE = 'masjid_settings';
+const MAX_JUMUAAH_PRAYERS = 6;
 
 const DEFAULT_SETTINGS = {
   jumuaaPrayers: ['12:30', '13:30', '14:30'],
@@ -133,7 +134,8 @@ function normalizeSettings(settings = {}) {
     : DEFAULT_SETTINGS.jumuaaPrayers;
 
   return {
-    jumuaaPrayers: sortClockTimes(jumuaaPrayers.length ? jumuaaPrayers : DEFAULT_SETTINGS.jumuaaPrayers),
+    jumuaaPrayers: sortClockTimes(jumuaaPrayers.length ? jumuaaPrayers : DEFAULT_SETTINGS.jumuaaPrayers)
+      .slice(0, MAX_JUMUAAH_PRAYERS),
     iqama: Object.fromEntries(
       PRAYERS.map((prayer) => {
         const fallback = DEFAULT_SETTINGS.iqama[prayer];

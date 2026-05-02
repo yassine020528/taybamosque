@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DEFAULT_MASJID_SETTINGS, DISPLAYED_PRAYERS } from '../config/masjid.config';
+import { DEFAULT_MASJID_SETTINGS, DISPLAYED_PRAYERS, MAX_JUMUAAH_PRAYERS } from '../config/masjid.config';
 import { MasjidSettings } from '../models/masjid-settings.model';
 import { PrayerName } from '../models/prayer.model';
 
@@ -71,7 +71,8 @@ export class MasjidSettingsService {
       : fallback.jumuaaPrayers;
 
     return {
-      jumuaaPrayers: this.sortClockTimes(jumuaaPrayers.length ? jumuaaPrayers : [...fallback.jumuaaPrayers]),
+      jumuaaPrayers: this.sortClockTimes(jumuaaPrayers.length ? jumuaaPrayers : [...fallback.jumuaaPrayers])
+        .slice(0, MAX_JUMUAAH_PRAYERS),
       iqama: Object.fromEntries(
         DISPLAYED_PRAYERS.map((prayer) => {
           const candidate = settings?.iqama?.[prayer.name];

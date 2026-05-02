@@ -1,6 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, ViewEncapsulation, computed, inject, signal } from '@angular/core';
-import { DEFAULT_MASJID_SETTINGS, DISPLAY_DIMENSIONS, DISPLAYED_PRAYERS, DUAAS, TIME_ZONE } from './core/config/masjid.config';
+import {
+  DEFAULT_MASJID_SETTINGS,
+  DISPLAY_DIMENSIONS,
+  DISPLAYED_PRAYERS,
+  DUAAS,
+  MAX_JUMUAAH_PRAYERS,
+  TIME_ZONE,
+} from './core/config/masjid.config';
 import { EventPopup } from './core/models/event-popup.model';
 import { IqamaMode, MasjidSettings } from './core/models/masjid-settings.model';
 import { MoonPhase } from './core/models/moon-phase.model';
@@ -57,6 +64,7 @@ export class AppComponent implements OnDestroy {
   readonly settingsError = signal('');
   readonly editablePrayers = DISPLAYED_PRAYERS.filter((prayer) => prayer.name !== 'Sunrise');
   readonly showSettingsButton = computed(() => !this.fullscreenActive() && !this.settingsPanelOpen());
+  readonly maxJumuaaPrayers = MAX_JUMUAAH_PRAYERS;
 
   readonly formattedJumuaahPrayers = computed(() => this.jumuaaPrayers().map(formatHours));
   readonly prayerTimes = computed(() => this.prayerTimesState());
@@ -252,6 +260,10 @@ export class AppComponent implements OnDestroy {
   }
 
   addJumuaaPrayer(): void {
+    if (this.settingsDraft.jumuaaPrayers.length >= MAX_JUMUAAH_PRAYERS) {
+      return;
+    }
+
     this.settingsDraft.jumuaaPrayers = [...this.settingsDraft.jumuaaPrayers, '13:30'];
   }
 

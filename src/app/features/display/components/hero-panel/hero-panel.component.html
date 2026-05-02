@@ -23,10 +23,14 @@
 
   <div class="jumuaa-card">
     <p class="clock-label">Jumuah Prayers</p>
-    <div class="jumuaa-times">
-      <div class="jumuaa-slot" *ngFor="let prayer of jumuaaPrayers(); let index = index">
-        <p class="jumuaa-order">{{ jumuaaOrderLabel(index) }}</p>
-        <p class="jumuaa-time">{{ prayer }}</p>
+    <div
+      class="jumuaa-times"
+      [class.jumuaa-times--animated]="hasSecondJumuaaPage()"
+      [class.jumuaa-times--second]="activeJumuaaPage() === 1"
+    >
+      <div class="jumuaa-slot" *ngFor="let prayer of visibleJumuaaPrayers()">
+        <p class="jumuaa-order">{{ prayer.orderLabel }}</p>
+        <p class="jumuaa-time">{{ prayer.time }}</p>
       </div>
     </div>
   </div>

@@ -36,7 +36,14 @@
         <section class="settings-section">
           <div class="settings-section__heading">
             <h3>Jumuaa Prayers</h3>
-            <button type="button" class="settings-action" (click)="addJumuaaPrayer()">Add Time</button>
+            <button
+              type="button"
+              class="settings-action"
+              (click)="addJumuaaPrayer()"
+              [disabled]="settingsDraft.jumuaaPrayers.length >= maxJumuaaPrayers"
+            >
+              Add Time
+            </button>
           </div>
 
           <div class="jumuaa-editor-row" *ngFor="let prayer of settingsDraft.jumuaaPrayers; let index = index">
